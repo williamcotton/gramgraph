@@ -159,7 +159,9 @@ fn test_end_to_end_unicode() {
 fn test_end_to_end_mixing_bar_and_line() {
     let csv = "x,y\n1,10\n2,20\n3,30\n";
     let result = run_gramgraph("aes(x: x, y: y) | bar() | line()", csv);
-    assert!(result.is_err(), "Should have failed mixing bar and line");
+    assert!(result.is_ok(), "Mixing bar and line should now succeed");
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
 }
 
 #[test]
@@ -169,6 +171,88 @@ fn test_end_to_end_styled_layers() {
         "aes(x: date, y: temperature) | line(color: \"red\", width: 2, alpha: 0.7)",
         &csv,
     );
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+// Data-driven aesthetics tests
+
+#[test]
+fn test_end_to_end_grouped_line_by_color() {
+    let csv = fs::read_to_string("test/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: time, y: sales, color: region) | line()", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+    // Should have legend, so PNG should be larger than ungrouped version
+    assert!(png_bytes.len() > 10000, "PNG should include legend");
+}
+
+#[test]
+fn test_end_to_end_grouped_scatter_by_color() {
+    let csv = fs::read_to_string("test/iris.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: sepal_length, y: sepal_width, color: species) | point()", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+#[test]
+fn test_end_to_end_grouped_with_size() {
+    let csv = fs::read_to_string("test/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: time, y: sales, size: region) | point()", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+// Faceting tests
+
+#[test]
+fn test_end_to_end_facet_wrap_basic() {
+    let csv = fs::read_to_string("test/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: time, y: sales) | line() | facet_wrap(by: region)", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+    // Faceted plot should be significantly larger
+    assert!(png_bytes.len() > 100000, "Faceted PNG should be larger");
+}
+
+#[test]
+fn test_end_to_end_facet_wrap_scatter() {
+    let csv = fs::read_to_string("test/iris.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: sepal_length, y: sepal_width) | point() | facet_wrap(by: species)", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+#[test]
+fn test_end_to_end_facet_with_ncol() {
+    let csv = fs::read_to_string("test/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: time, y: sales) | line() | facet_wrap(by: region, ncol: Some(2))", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+// Combined features tests
+
+#[test]
+fn test_end_to_end_facet_plus_grouping() {
+    let csv = fs::read_to_string("test/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region)", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+#[test]
+fn test_end_to_end_multiple_layers_grouped() {
+    let csv = fs::read_to_string("test/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph("aes(x: time, y: sales, color: region) | line() | point()", &csv);
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));

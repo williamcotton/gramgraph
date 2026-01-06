@@ -80,10 +80,18 @@ cat data.csv | gramgraph 'aes(x: month, y: product_a) | bar(position: "stack", c
 
 ### Supported Commands
 
-#### `aes(x: col, y: col)`
+#### `aes(x: col, y: col, ...)`
 Defines global aesthetic mappings from data columns to visual properties.
+
+**Required parameters:**
 - `x:` - Column name for x-axis
 - `y:` - Column name for y-axis
+
+**Optional parameters (data-driven aesthetics):**
+- `color: column` - Map column values to colors (creates grouped visualization with legend)
+- `size: column` - Map column values to sizes
+- `shape: column` - Map column values to shapes
+- `alpha: column` - Map column values to transparency
 
 #### `line(...)`
 Renders data as a line series.

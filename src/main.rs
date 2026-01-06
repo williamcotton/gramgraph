@@ -1,5 +1,6 @@
 mod csv_reader;
 mod graph;
+mod palette;
 mod parser;
 mod runtime;
 
@@ -10,9 +11,9 @@ use std::io::{self, Read, Write};
 
 #[derive(Parser, Debug)]
 #[command(name = "gramgraph")]
-#[command(about = "Generate graphs from CSV data using PlotPipe DSL", long_about = None)]
+#[command(about = "Generate graphs from CSV data using GramGraph DSL", long_about = None)]
 struct Args {
-    /// PlotPipe DSL string (e.g., 'chart(x: time, y: temp) | layer_line(color: "red")')
+    /// GramGraph DSL string (e.g., 'chart(x: time, y: temp) | layer_line(color: "red")')
     dsl: String,
 }
 

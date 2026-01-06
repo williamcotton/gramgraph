@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use csv::ReaderBuilder;
 use std::io;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CsvData {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
@@ -95,6 +95,50 @@ pub fn extract_column(data: &CsvData, selector: ColumnSelector) -> Result<(Strin
             )
         })?;
         values.push(value);
+    }
+
+    Ok((column_name, values))
+}
+
+pub fn extract_column_as_string(data: &CsvData, selector: ColumnSelector) -> Result<(String, Vec<String>)> {
+    let (column_index, column_name) = match selector {
+        ColumnSelector::Index(idx) => {
+            if idx >= data.headers.len() {
+                return Err(anyhow!(
+                    "Column index {} out of bounds (available columns: {})",
+                    idx,
+                    data.headers.len()
+                ));
+            }
+            (idx, data.headers[idx].clone())
+        }
+        ColumnSelector::Name(name) => {
+            let idx = data
+                .headers
+                .iter()
+                .position(|h| h.eq_ignore_ascii_case(&name))
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Column '{}' not found. Available columns: {}",
+                        name,
+                        data.headers.join(", ")
+                    )
+                })?;
+            (idx, data.headers[idx].clone())
+        }
+    };
+
+    let mut values = Vec::new();
+    for (row_idx, row) in data.rows.iter().enumerate() {
+        if column_index >= row.len() {
+            return Err(anyhow!(
+                "Row {} has only {} columns, expected at least {}",
+                row_idx + 1,
+                row.len(),
+                column_index + 1
+            ));
+        }
+        values.push(row[column_index].clone());
     }
 
     Ok((column_name, values))

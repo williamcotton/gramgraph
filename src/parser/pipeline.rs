@@ -1,7 +1,8 @@
 // Pipeline parser for Grammar of Graphics DSL
 
 use super::aesthetics::parse_aesthetics;
-use super::ast::{Layer, PlotSpec};
+use super::ast::PlotSpec;
+use super::facet::parse_facet_wrap;
 use super::geom::parse_geom;
 use super::lexer::ws;
 use nom::{
@@ -40,6 +41,12 @@ pub fn parse_plot_spec(input: &str) -> IResult<&str, PlotSpec> {
         parse_geom(input)
     })(input)?;
 
+    // Parse optional facet_wrap at the end
+    let (input, facet) = opt(|input| {
+        let (input, _) = ws(tag("|"))(input)?;
+        parse_facet_wrap(input)
+    })(input)?;
+
     // Consume trailing whitespace and ensure end of input
     let (input, _) = ws(eof)(input)?;
 
@@ -53,6 +60,7 @@ pub fn parse_plot_spec(input: &str) -> IResult<&str, PlotSpec> {
             aesthetics,
             layers,
             labels: None, // Future: parse labs() command
+            facet,
         },
     ))
 }
@@ -133,5 +141,34 @@ mod tests {
         let (_, spec) = result.unwrap();
         assert!(spec.aesthetics.is_none());
         assert_eq!(spec.layers.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_plot_spec_with_facet_wrap() {
+        let result = parse_plot_spec("aes(x: time, y: sales) | line() | facet_wrap(by: region)");
+        assert!(result.is_ok());
+        let (_, spec) = result.unwrap();
+        assert!(spec.facet.is_some());
+        let facet = spec.facet.unwrap();
+        assert_eq!(facet.by, "region");
+    }
+
+    #[test]
+    fn test_parse_plot_spec_with_facet_wrap_full() {
+        let result = parse_plot_spec(r#"aes(x: time, y: sales) | line() | facet_wrap(by: region, ncol: Some(2), scales: "free_x")"#);
+        assert!(result.is_ok());
+        let (_, spec) = result.unwrap();
+        assert!(spec.facet.is_some());
+        let facet = spec.facet.unwrap();
+        assert_eq!(facet.by, "region");
+        assert_eq!(facet.ncol, Some(2));
+    }
+
+    #[test]
+    fn test_parse_plot_spec_without_facet() {
+        let result = parse_plot_spec("aes(x: time, y: sales) | line()");
+        assert!(result.is_ok());
+        let (_, spec) = result.unwrap();
+        assert!(spec.facet.is_none());
     }
 }

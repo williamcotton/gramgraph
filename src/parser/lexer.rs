@@ -1,4 +1,4 @@
-// Lexer utilities for PlotPipe DSL
+// Lexer utilities for GramGraph DSL
 
 use nom::{
     bytes::complete::{tag, take_while1},

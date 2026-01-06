@@ -1,6 +1,6 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
-use super::ast::{BarLayer, BarPosition, Layer, LineLayer, PointLayer};
+use super::ast::{AestheticValue, BarLayer, BarPosition, Layer, LineLayer, PointLayer};
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
     branch::alt,
@@ -12,8 +12,17 @@ use nom::{
     IResult,
 };
 
+/// Argument value type for geometry parsers
+enum ArgValue {
+    ColumnName(String),        // x, y aesthetic overrides
+    ColorFixed(String),        // color: "red" (literal)
+    ColorMapped(String),       // color: region (column)
+    NumericFixed(f64),         // width: 2, alpha: 0.5
+    NumericMapped(String),     // width: size_col, alpha: alpha_col
+}
+
 /// Parse a line geometry
-/// Format: line() or line(color: "red", width: 2, ...)
+/// Format: line() or line(color: "red", width: 2, ...) or line(color: region)
 pub fn parse_line(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(tag("line"))(input)?;
     let (input, _) = ws(char('('))(input)?;
@@ -24,23 +33,38 @@ pub fn parse_line(input: &str) -> IResult<&str, Layer> {
         alt((
             map(
                 preceded(ws(tag("x:")), ws(identifier)),
-                |x| ("x", x, 0.0),
+                |x| ("x", ArgValue::ColumnName(x)),
             ),
             map(
                 preceded(ws(tag("y:")), ws(identifier)),
-                |y| ("y", y, 0.0),
+                |y| ("y", ArgValue::ColumnName(y)),
             ),
+            // color: can be "red" (literal) or region (identifier/column)
             map(
                 preceded(ws(tag("color:")), ws(string_literal)),
-                |c| ("color", c, 0.0),
+                |c| ("color", ArgValue::ColorFixed(c)),
             ),
+            map(
+                preceded(ws(tag("color:")), ws(identifier)),
+                |c| ("color", ArgValue::ColorMapped(c)),
+            ),
+            // width: can be 2.0 (literal) or width_col (identifier/column)
             map(
                 preceded(ws(tag("width:")), ws(number_literal)),
-                |w| ("width", String::new(), w),
+                |w| ("width", ArgValue::NumericFixed(w)),
             ),
             map(
+                preceded(ws(tag("width:")), ws(identifier)),
+                |w| ("width", ArgValue::NumericMapped(w)),
+            ),
+            // alpha: can be 0.5 (literal) or alpha_col (identifier/column)
+            map(
                 preceded(ws(tag("alpha:")), ws(number_literal)),
-                |a| ("alpha", String::new(), a),
+                |a| ("alpha", ArgValue::NumericFixed(a)),
+            ),
+            map(
+                preceded(ws(tag("alpha:")), ws(identifier)),
+                |a| ("alpha", ArgValue::NumericMapped(a)),
             ),
         )),
     )(input)?;
@@ -49,13 +73,16 @@ pub fn parse_line(input: &str) -> IResult<&str, Layer> {
 
     let mut layer = LineLayer::default();
 
-    for (key, str_val, num_val) in args {
-        match key {
-            "x" => layer.x = Some(str_val),
-            "y" => layer.y = Some(str_val),
-            "color" => layer.color = Some(str_val),
-            "width" => layer.width = Some(num_val),
-            "alpha" => layer.alpha = Some(num_val),
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
             _ => {}
         }
     }
@@ -64,7 +91,7 @@ pub fn parse_line(input: &str) -> IResult<&str, Layer> {
 }
 
 /// Parse a point geometry
-/// Format: point() or point(size: 5, color: "blue", ...)
+/// Format: point() or point(size: 5, color: "blue", ...) or point(color: region, size: metric)
 pub fn parse_point(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(tag("point"))(input)?;
     let (input, _) = ws(char('('))(input)?;
@@ -75,27 +102,47 @@ pub fn parse_point(input: &str) -> IResult<&str, Layer> {
         alt((
             map(
                 preceded(ws(tag("x:")), ws(identifier)),
-                |x| ("x", x, 0.0),
+                |x| ("x", ArgValue::ColumnName(x)),
             ),
             map(
                 preceded(ws(tag("y:")), ws(identifier)),
-                |y| ("y", y, 0.0),
+                |y| ("y", ArgValue::ColumnName(y)),
             ),
+            // color: can be "blue" (literal) or region (column)
             map(
                 preceded(ws(tag("color:")), ws(string_literal)),
-                |c| ("color", c, 0.0),
+                |c| ("color", ArgValue::ColorFixed(c)),
             ),
+            map(
+                preceded(ws(tag("color:")), ws(identifier)),
+                |c| ("color", ArgValue::ColorMapped(c)),
+            ),
+            // size: can be 5.0 (literal) or size_col (column)
             map(
                 preceded(ws(tag("size:")), ws(number_literal)),
-                |s| ("size", String::new(), s),
+                |s| ("size", ArgValue::NumericFixed(s)),
             ),
+            map(
+                preceded(ws(tag("size:")), ws(identifier)),
+                |s| ("size", ArgValue::NumericMapped(s)),
+            ),
+            // shape: can be "circle" (literal) or shape_col (column)
             map(
                 preceded(ws(tag("shape:")), ws(string_literal)),
-                |sh| ("shape", sh, 0.0),
+                |sh| ("shape", ArgValue::ColorFixed(sh)),
             ),
             map(
+                preceded(ws(tag("shape:")), ws(identifier)),
+                |sh| ("shape", ArgValue::ColorMapped(sh)),
+            ),
+            // alpha: can be 0.8 (literal) or alpha_col (column)
+            map(
                 preceded(ws(tag("alpha:")), ws(number_literal)),
-                |a| ("alpha", String::new(), a),
+                |a| ("alpha", ArgValue::NumericFixed(a)),
+            ),
+            map(
+                preceded(ws(tag("alpha:")), ws(identifier)),
+                |a| ("alpha", ArgValue::NumericMapped(a)),
             ),
         )),
     )(input)?;
@@ -104,14 +151,18 @@ pub fn parse_point(input: &str) -> IResult<&str, Layer> {
 
     let mut layer = PointLayer::default();
 
-    for (key, str_val, num_val) in args {
-        match key {
-            "x" => layer.x = Some(str_val),
-            "y" => layer.y = Some(str_val),
-            "color" => layer.color = Some(str_val),
-            "size" => layer.size = Some(num_val),
-            "shape" => layer.shape = Some(str_val),
-            "alpha" => layer.alpha = Some(num_val),
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("size", ArgValue::NumericFixed(s)) => layer.size = Some(AestheticValue::Fixed(s)),
+            ("size", ArgValue::NumericMapped(s)) => layer.size = Some(AestheticValue::Mapped(s)),
+            ("shape", ArgValue::ColorFixed(sh)) => layer.shape = Some(AestheticValue::Fixed(sh)),
+            ("shape", ArgValue::ColorMapped(sh)) => layer.shape = Some(AestheticValue::Mapped(sh)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
             _ => {}
         }
     }
@@ -119,40 +170,60 @@ pub fn parse_point(input: &str) -> IResult<&str, Layer> {
     Ok((input, Layer::Point(layer)))
 }
 
+/// Argument value for position (special handling)
+enum PositionArg {
+    Position(String),  // position: "dodge"/"stack"/"identity"
+}
+
 /// Parse a bar geometry
-/// Format: bar() or bar(color: "red", position: "dodge", ...)
+/// Format: bar() or bar(color: "red", position: "dodge", ...) or bar(color: region)
 pub fn parse_bar(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(tag("bar"))(input)?;
     let (input, _) = ws(char('('))(input)?;
 
     // Parse optional named arguments
-    // We need to handle position specially as it's a string that maps to an enum
     let (input, args) = separated_list0(
         ws(char(',')),
         alt((
             map(
                 preceded(ws(tag("x:")), ws(identifier)),
-                |x| ("x", x, 0.0),
+                |x| ("x", ArgValue::ColumnName(x)),
             ),
             map(
                 preceded(ws(tag("y:")), ws(identifier)),
-                |y| ("y", y, 0.0),
+                |y| ("y", ArgValue::ColumnName(y)),
             ),
+            // color: can be "red" (literal) or region (column)
             map(
                 preceded(ws(tag("color:")), ws(string_literal)),
-                |c| ("color", c, 0.0),
+                |c| ("color", ArgValue::ColorFixed(c)),
             ),
+            map(
+                preceded(ws(tag("color:")), ws(identifier)),
+                |c| ("color", ArgValue::ColorMapped(c)),
+            ),
+            // width: can be 0.8 (literal) or width_col (column)
             map(
                 preceded(ws(tag("width:")), ws(number_literal)),
-                |w| ("width", String::new(), w),
+                |w| ("width", ArgValue::NumericFixed(w)),
             ),
+            map(
+                preceded(ws(tag("width:")), ws(identifier)),
+                |w| ("width", ArgValue::NumericMapped(w)),
+            ),
+            // alpha: can be 0.7 (literal) or alpha_col (column)
             map(
                 preceded(ws(tag("alpha:")), ws(number_literal)),
-                |a| ("alpha", String::new(), a),
+                |a| ("alpha", ArgValue::NumericFixed(a)),
             ),
             map(
+                preceded(ws(tag("alpha:")), ws(identifier)),
+                |a| ("alpha", ArgValue::NumericMapped(a)),
+            ),
+            // position: always a string literal
+            map(
                 preceded(ws(tag("position:")), ws(string_literal)),
-                |p| ("position", p, 0.0),
+                |p| ("position", ArgValue::ColorFixed(p)),
             ),
         )),
     )(input)?;
@@ -161,15 +232,18 @@ pub fn parse_bar(input: &str) -> IResult<&str, Layer> {
 
     let mut layer = BarLayer::default();
 
-    for (key, str_val, num_val) in args {
-        match key {
-            "x" => layer.x = Some(str_val),
-            "y" => layer.y = Some(str_val),
-            "color" => layer.color = Some(str_val),
-            "width" => layer.width = Some(num_val),
-            "alpha" => layer.alpha = Some(num_val),
-            "position" => {
-                layer.position = match str_val.as_str() {
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            ("position", ArgValue::ColorFixed(p)) => {
+                layer.position = match p.as_str() {
                     "dodge" => BarPosition::Dodge,
                     "stack" => BarPosition::Stack,
                     "identity" => BarPosition::Identity,
@@ -213,7 +287,7 @@ mod tests {
         let (_, layer) = result.unwrap();
         match layer {
             Layer::Line(l) => {
-                assert_eq!(l.color, Some("red".to_string()));
+                assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
             }
             _ => panic!("Expected Line layer"),
         }
@@ -226,7 +300,7 @@ mod tests {
         let (_, layer) = result.unwrap();
         match layer {
             Layer::Point(p) => {
-                assert_eq!(p.size, Some(5.0));
+                assert_eq!(p.size, Some(AestheticValue::Fixed(5.0)));
             }
             _ => panic!("Expected Point layer"),
         }
@@ -280,7 +354,7 @@ mod tests {
         let (_, layer) = result.unwrap();
         match layer {
             Layer::Bar(b) => {
-                assert_eq!(b.color, Some("red".to_string()));
+                assert_eq!(b.color, Some(AestheticValue::Fixed("red".to_string())));
             }
             _ => panic!("Expected Bar layer"),
         }
@@ -294,9 +368,9 @@ mod tests {
         match layer {
             Layer::Bar(b) => {
                 assert_eq!(b.position, BarPosition::Stack);
-                assert_eq!(b.color, Some("blue".to_string()));
-                assert_eq!(b.alpha, Some(0.7));
-                assert_eq!(b.width, Some(0.6));
+                assert_eq!(b.color, Some(AestheticValue::Fixed("blue".to_string())));
+                assert_eq!(b.alpha, Some(AestheticValue::Fixed(0.7)));
+                assert_eq!(b.width, Some(AestheticValue::Fixed(0.6)));
             }
             _ => panic!("Expected Bar layer"),
         }
@@ -312,9 +386,9 @@ mod tests {
             Layer::Line(l) => {
                 assert_eq!(l.x, Some("col1".to_string()));
                 assert_eq!(l.y, Some("col2".to_string()));
-                assert_eq!(l.color, Some("red".to_string()));
-                assert_eq!(l.width, Some(2.0));
-                assert_eq!(l.alpha, Some(0.5));
+                assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
+                assert_eq!(l.alpha, Some(AestheticValue::Fixed(0.5)));
             }
             _ => panic!("Expected Line layer"),
         }
@@ -330,9 +404,9 @@ mod tests {
             Layer::Point(p) => {
                 assert_eq!(p.x, Some("col1".to_string()));
                 assert_eq!(p.y, Some("col2".to_string()));
-                assert_eq!(p.color, Some("blue".to_string()));
-                assert_eq!(p.size, Some(10.0));
-                assert_eq!(p.alpha, Some(0.8));
+                assert_eq!(p.color, Some(AestheticValue::Fixed("blue".to_string())));
+                assert_eq!(p.size, Some(AestheticValue::Fixed(10.0)));
+                assert_eq!(p.alpha, Some(AestheticValue::Fixed(0.8)));
             }
             _ => panic!("Expected Point layer"),
         }
@@ -346,8 +420,8 @@ mod tests {
         let (_, layer) = result.unwrap();
         match layer {
             Layer::Line(l) => {
-                assert_eq!(l.color, Some("red".to_string()));
-                assert_eq!(l.width, Some(2.0));
+                assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
             }
             _ => panic!("Expected Line layer"),
         }
@@ -375,8 +449,8 @@ mod tests {
         let (_, layer) = result.unwrap();
         match layer {
             Layer::Line(l) => {
-                assert_eq!(l.color, Some("red".to_string()));
-                assert_eq!(l.width, Some(2.0));
+                assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
             }
             _ => panic!("Expected Line layer"),
         }
