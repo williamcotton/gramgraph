@@ -1,8 +1,4 @@
-mod csv_reader;
-mod graph;
-mod palette;
-mod parser;
-mod runtime;
+use gramgraph::{csv_reader, parser, runtime};
 
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
