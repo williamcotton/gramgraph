@@ -9,6 +9,13 @@ pub struct PlotSpec {
     pub facet: Option<Facet>,
 }
 
+impl PlotSpec {
+    /// Returns true if any layer in the plot requires a categorical x-axis
+    pub fn requires_categorical_x(&self) -> bool {
+        self.layers.iter().any(|l| l.requires_categorical_x())
+    }
+}
+
 /// Global aesthetic mappings (data columns → visual properties)
 #[derive(Debug, Clone, PartialEq)]
 pub struct Aesthetics {
@@ -42,6 +49,13 @@ pub enum Layer {
     Point(PointLayer),
     Bar(BarLayer),
     // Future: Area, Ribbon, Histogram, etc.
+}
+
+impl Layer {
+    /// Returns true if this layer type requires a categorical x-axis (e.g., Bar charts)
+    pub fn requires_categorical_x(&self) -> bool {
+        matches!(self, Layer::Bar(_))
+    }
 }
 
 /// Line geometry layer

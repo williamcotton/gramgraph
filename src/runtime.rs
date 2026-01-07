@@ -15,19 +15,40 @@ pub fn render_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>> {
         anyhow::bail!("Plot requires at least one geometry layer (line, point, etc.)");
     }
 
-    // Check if we have faceting
-    if spec.facet.is_some() {
-        let facet = spec.facet.clone().unwrap();
-        return render_faceted_plot(spec, csv_data, facet);
-    }
-
-    // Determine axis type based on layers
-    // Bar charts imply categorical x-axis.
-    let force_categorical = spec.layers.iter().any(|l| matches!(l, Layer::Bar(_)));
-
-    if force_categorical {
-        render_categorical_plot(spec, csv_data)
+    let renderer: Box<dyn Renderer> = if spec.facet.is_some() {
+        Box::new(FacetedRenderer)
+    } else if spec.requires_categorical_x() {
+        Box::new(CategoricalRenderer)
     } else {
+        Box::new(ContinuousRenderer)
+    };
+
+    renderer.render(spec, csv_data)
+}
+
+/// Trait for different plot rendering strategies
+trait Renderer {
+    fn render(&self, spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>;
+}
+
+struct FacetedRenderer;
+impl Renderer for FacetedRenderer {
+    fn render(&self, spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>> {
+        let facet = spec.facet.clone().unwrap();
+        render_faceted_plot(spec, csv_data, facet)
+    }
+}
+
+struct CategoricalRenderer;
+impl Renderer for CategoricalRenderer {
+    fn render(&self, spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>> {
+        render_categorical_plot(spec, csv_data)
+    }
+}
+
+struct ContinuousRenderer;
+impl Renderer for ContinuousRenderer {
+    fn render(&self, spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>> {
         render_continuous_plot(spec, csv_data)
     }
 }
