@@ -90,15 +90,14 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
         layer: Layer,
         // For Bar: categories + y (aligned)
         // For Line/Point: x (indices) + y
-        x_data: Vec<f64>, 
+        x_data: Vec<f64>,
         y_data: Vec<f64>,
         bar_categories: Option<Vec<String>>, // Only for Bar
-        legend: Option<graph::LegendEntry>,
     }
     
     let mut ops = Vec::new();
     // Special handling for grouped bars
-    let mut bar_groups: Vec<(Vec<String>, Vec<(Vec<f64>, graph::BarStyle)>, String)> = Vec::new(); 
+    let mut bar_groups: Vec<(Vec<String>, Vec<(Vec<f64>, graph::BarStyle, Option<String>)>, String)> = Vec::new(); 
 
     for layer in &spec.layers {
         let resolved = resolve_layer_aesthetics(layer, &spec.aesthetics)?;
@@ -128,14 +127,7 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
                             style.color = color_map.get(&g_key).cloned().or(style.color);
                         }
                         all_y_data.extend(aligned_y.iter().cloned());
-                        series.push((aligned_y, style.clone()));
-                        
-                        // Legend
-                        ops.push(RenderOp {
-                            layer: layer.clone(),
-                            x_data: vec![], y_data: vec![], bar_categories: None,
-                            legend: Some(graph::LegendEntry{ label: g_key, color: style.color.unwrap_or_default(), shape: None })
-                        });
+                        series.push((aligned_y, style.clone(), Some(g_key.clone())));
                     }
                     
                     let pos_str = match bar_layer.position {
@@ -159,10 +151,9 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
                     
                     ops.push(RenderOp {
                         layer: layer.clone(),
-                        x_data: vec![], 
+                        x_data: vec![],
                         y_data: aligned_y,
                         bar_categories: Some(categories_order.clone()),
-                        legend: None,
                     });
                 }
             },
@@ -185,7 +176,6 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
                     x_data: x_f64,
                     y_data: y_f64,
                     bar_categories: None,
-                    legend: None,
                 });
             },
             Layer::Point(_) => {
@@ -207,7 +197,6 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
                     x_data: x_f64,
                     y_data: y_f64,
                     bar_categories: None,
-                    legend: None,
                 });
             }
         }
@@ -238,18 +227,7 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
     }
 
     // Render Layers
-    let mut legends = Vec::new();
-    let mut seen_labels = std::collections::HashSet::new();
-
     for op in ops {
-        if let Some(l) = op.legend {
-            if !seen_labels.contains(&l.label) {
-                seen_labels.insert(l.label.clone());
-                legends.push(l);
-            }
-            continue;
-        }
-        
         match op.layer {
             Layer::Bar(b) => {
                 if let Some(cats) = op.bar_categories {
@@ -257,16 +235,12 @@ fn render_categorical_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>>
                 }
             },
             Layer::Line(l) => {
-                canvas.add_line_layer(op.x_data, op.y_data, line_layer_to_style(&l))?;
+                canvas.add_line_layer(op.x_data, op.y_data, line_layer_to_style(&l), None)?;
             },
             Layer::Point(p) => {
-                canvas.add_point_layer(op.x_data, op.y_data, point_layer_to_style(&p))?;
+                canvas.add_point_layer(op.x_data, op.y_data, point_layer_to_style(&p), None)?;
             }
         }
-    }
-    
-    if !legends.is_empty() {
-        canvas.add_legend(legends)?;
     }
 
     canvas.render()
@@ -379,6 +353,7 @@ fn render_continuous_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>> 
                     instruction.x_data.clone(),
                     instruction.y_data.clone(),
                     instruction.line_style.clone().unwrap_or_default(),
+                    instruction.legend_label.clone(),
                 )?;
             }
             Layer::Point(_) => {
@@ -386,46 +361,13 @@ fn render_continuous_plot(spec: PlotSpec, csv_data: CsvData) -> Result<Vec<u8>> 
                     instruction.x_data.clone(),
                     instruction.y_data.clone(),
                     instruction.point_style.clone().unwrap_or_default(),
+                    instruction.legend_label.clone(),
                 )?;
             }
             Layer::Bar(_) => {
                 unreachable!()
             }
         }
-    }
-
-    // Collect legend entries from grouped layers
-    let mut seen_labels = std::collections::HashSet::new();
-    let legend_entries: Vec<graph::LegendEntry> = render_instructions
-        .iter()
-        .filter_map(|instruction| {
-            instruction.legend_label.as_ref().and_then(|label| {
-                if seen_labels.contains(label) {
-                    return None;
-                }
-                seen_labels.insert(label.clone());
-
-                // Extract color from the instruction's style
-                let color = if let Some(ref line_style) = instruction.line_style {
-                    line_style.color.clone().unwrap_or_else(|| "blue".to_string())
-                } else if let Some(ref point_style) = instruction.point_style {
-                    point_style.color.clone().unwrap_or_else(|| "blue".to_string())
-                } else {
-                    "blue".to_string()
-                };
-
-                Some(graph::LegendEntry {
-                    label: label.clone(),
-                    color,
-                    shape: None,
-                })
-            })
-        })
-        .collect();
-
-    // Add legend if there are entries
-    if !legend_entries.is_empty() {
-        canvas.add_legend(legend_entries)?;
     }
 
     canvas.render()

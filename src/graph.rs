@@ -28,26 +28,43 @@ pub struct BarStyle {
     pub width: Option<f64>,
 }
 
-/// Legend entry for grouped data
+/// Drawing operation for a layer (deferred rendering)
 #[derive(Debug, Clone)]
-pub struct LegendEntry {
-    pub label: String,
-    pub color: String,
-    pub shape: Option<String>,
+enum LayerOp {
+    Line {
+        x_data: Vec<f64>,
+        y_data: Vec<f64>,
+        style: LineStyle,
+        label: Option<String>,
+    },
+    Point {
+        x_data: Vec<f64>,
+        y_data: Vec<f64>,
+        style: PointStyle,
+        label: Option<String>,
+    },
+    Bar {
+        categories: Vec<String>,
+        y_data: Vec<f64>,
+        style: BarStyle,
+    },
+    BarGroup {
+        categories: Vec<String>,
+        series: Vec<(Vec<f64>, BarStyle, Option<String>)>,
+        position: String,
+    },
 }
 
 /// Canvas for multi-layer plotting
 #[derive(Debug)]
 pub struct Canvas {
-    buffer: Vec<u8>,
     width: u32,
     height: u32,
     x_range: Range<f64>,
     y_range: Range<f64>,
     title: Option<String>,
-    chart_initialized: bool,
-    legend_entries: Vec<LegendEntry>,
     x_labels: Option<Vec<String>>,
+    layers: Vec<LayerOp>,
 }
 
 impl Canvas {
@@ -95,18 +112,14 @@ impl Canvas {
             (y_min - padding)..(y_max + padding)
         };
 
-        let buffer = vec![0u8; (width * height * 3) as usize];
-
         Ok(Canvas {
-            buffer,
             width,
             height,
             x_range,
             y_range,
             title,
-            chart_initialized: false,
-            legend_entries: Vec::new(),
             x_labels: None,
+            layers: Vec::new(),
         })
     }
 
@@ -121,6 +134,7 @@ impl Canvas {
         x_data: Vec<f64>,
         y_data: Vec<f64>,
         style: LineStyle,
+        label: Option<String>,
     ) -> Result<()> {
         if x_data.len() != y_data.len() {
             anyhow::bail!(
@@ -130,56 +144,12 @@ impl Canvas {
             );
         }
 
-        let root = BitMapBackend::with_buffer(&mut self.buffer, (self.width, self.height))
-            .into_drawing_area();
-
-        let is_first_layer = !self.chart_initialized;
-        if is_first_layer {
-            root.fill(&WHITE).context("Failed to fill background")?;
-            self.chart_initialized = true;
-        }
-
-        let mut chart = ChartBuilder::on(&root)
-            .margin(10)
-            .caption(self.title.as_deref().unwrap_or(""), ("sans-serif", 20))
-            .x_label_area_size(40)
-            .y_label_area_size(50)
-            .build_cartesian_2d(self.x_range.clone(), self.y_range.clone())
-            .context("Failed to build chart")?;
-
-        if is_first_layer {
-            if let Some(labels) = &self.x_labels {
-                let labels = labels.clone();
-                let label_count = labels.len();
-                let formatter = move |x: &f64| {
-                    let idx = *x as usize;
-                    if idx < labels.len() {
-                        labels[idx].clone()
-                    } else {
-                        String::new()
-                    }
-                };
-                chart
-                    .configure_mesh()
-                    .x_labels(label_count)
-                    .x_label_formatter(&formatter)
-                    .draw()
-                    .context("Failed to draw mesh")?;
-            } else {
-                chart.configure_mesh().draw().context("Failed to draw mesh")?;
-            }
-        }
-
-        let points: Vec<(f64, f64)> = x_data.into_iter().zip(y_data).collect();
-
-        let color = parse_color(&style.color);
-        let width = style.width.unwrap_or(1.0) as u32;
-
-        chart
-            .draw_series(LineSeries::new(points, color.stroke_width(width)))
-            .context("Failed to draw line series")?;
-
-        root.present().context("Failed to present drawing")?;
+        self.layers.push(LayerOp::Line {
+            x_data,
+            y_data,
+            style,
+            label,
+        });
 
         Ok(())
     }
@@ -190,6 +160,7 @@ impl Canvas {
         x_data: Vec<f64>,
         y_data: Vec<f64>,
         style: PointStyle,
+        label: Option<String>,
     ) -> Result<()> {
         if x_data.len() != y_data.len() {
             anyhow::bail!(
@@ -199,321 +170,154 @@ impl Canvas {
             );
         }
 
-        let root = BitMapBackend::with_buffer(&mut self.buffer, (self.width, self.height))
+        self.layers.push(LayerOp::Point {
+            x_data,
+            y_data,
+            style,
+            label,
+        });
+
+        Ok(())
+    }
+
+    /// Add a bar layer to the canvas (categorical x-axis)
+    pub fn add_bar_layer(
+        &mut self,
+        categories: Vec<String>,
+        y_data: Vec<f64>,
+        style: BarStyle,
+    ) -> Result<()> {
+        if categories.len() != y_data.len() {
+            anyhow::bail!(
+                "Categories and Y data must have the same length (categories: {}, y: {})",
+                categories.len(),
+                y_data.len()
+            );
+        }
+
+        if categories.is_empty() {
+            anyhow::bail!("Cannot create bar chart with no data");
+        }
+
+        self.layers.push(LayerOp::Bar {
+            categories,
+            y_data,
+            style,
+        });
+
+        Ok(())
+    }
+    /// Add multiple bar series with dodge or stack positioning
+    pub fn add_bar_group(
+        &mut self,
+        categories: Vec<String>,
+        series: Vec<(Vec<f64>, BarStyle, Option<String>)>, // (y_data, style, label) for each series
+        position: &str, // "dodge", "stack", or "identity"
+    ) -> Result<()> {
+        if categories.is_empty() {
+            anyhow::bail!("Cannot create bar chart with no categories");
+        }
+
+        if series.is_empty() {
+            anyhow::bail!("Cannot create bar chart with no series");
+        }
+
+        self.layers.push(LayerOp::BarGroup {
+            categories,
+            series,
+            position: position.to_string(),
+        });
+
+        Ok(())
+    }
+
+    /// Finalize and encode the canvas as PNG
+    pub fn render(self) -> Result<Vec<u8>> {
+        let mut buffer = vec![0u8; (self.width * self.height * 3) as usize];
+
+        let root = BitMapBackend::with_buffer(&mut buffer, (self.width, self.height))
             .into_drawing_area();
 
-        let is_first_layer = !self.chart_initialized;
-        if is_first_layer {
-            root.fill(&WHITE).context("Failed to fill background")?;
-            self.chart_initialized = true;
-        }
+        root.fill(&WHITE).context("Failed to fill background")?;
+
+        // Determine x_range for the chart
+        let x_range = if self.x_labels.is_some() {
+            self.x_range.clone()
+        } else {
+            self.x_range.clone()
+        };
 
         let mut chart = ChartBuilder::on(&root)
             .margin(10)
             .caption(self.title.as_deref().unwrap_or(""), ("sans-serif", 20))
             .x_label_area_size(40)
             .y_label_area_size(50)
-            .build_cartesian_2d(self.x_range.clone(), self.y_range.clone())
+            .build_cartesian_2d(x_range, self.y_range.clone())
             .context("Failed to build chart")?;
 
-        // Only draw mesh if this is the first layer
-        if is_first_layer {
-            if let Some(labels) = &self.x_labels {
-                let labels = labels.clone();
-                let label_count = labels.len();
-                let formatter = move |x: &f64| {
-                    let idx = *x as usize;
-                    if idx < labels.len() {
-                        labels[idx].clone()
-                    } else {
-                        String::new()
+        // Configure mesh with custom x-axis labels if present
+        if let Some(labels) = &self.x_labels {
+            let labels = labels.clone();
+            let label_count = labels.len();
+            let formatter = move |x: &f64| {
+                let idx = *x as usize;
+                if idx < labels.len() {
+                    labels[idx].clone()
+                } else {
+                    String::new()
+                }
+            };
+            chart
+                .configure_mesh()
+                .x_labels(label_count)
+                .x_label_formatter(&formatter)
+                .draw()
+                .context("Failed to draw mesh")?;
+        } else {
+            chart.configure_mesh().draw().context("Failed to draw mesh")?;
+        }
+
+        // Draw all layers
+        for layer_op in self.layers {
+            match layer_op {
+                LayerOp::Line { x_data, y_data, style, label } => {
+                    let points: Vec<(f64, f64)> = x_data.into_iter().zip(y_data).collect();
+                    let color = parse_color(&style.color);
+                    let width = style.width.unwrap_or(1.0) as u32;
+
+                    let series = chart
+                        .draw_series(LineSeries::new(points, color.stroke_width(width)))
+                        .context("Failed to draw line series")?;
+
+                    if let Some(label_text) = label {
+                        series.label(label_text)
+                            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color.stroke_width(width)));
                     }
-                };
-                chart
-                    .configure_mesh()
-                    .x_labels(label_count)
-                    .x_label_formatter(&formatter)
-                    .draw()
-                    .context("Failed to draw mesh")?;
-            } else {
-                chart
-                    .configure_mesh()
-                    .draw()
-                    .context("Failed to draw mesh")?;
-            }
-        }
-
-        let points: Vec<(f64, f64)> = x_data.into_iter().zip(y_data).collect();
-
-        let color = parse_color(&style.color);
-        let size = style.size.unwrap_or(3.0) as i32;
-
-        chart
-            .draw_series(points.iter().map(|&(x, y)| {
-                Circle::new((x, y), size, color.filled())
-            }))
-            .context("Failed to draw point series")?;
-
-        root.present().context("Failed to present drawing")?;
-
-        Ok(())
-    }
-
-        /// Add a bar layer to the canvas (categorical x-axis)
-        pub fn add_bar_layer(
-            &mut self,
-            categories: Vec<String>,
-            y_data: Vec<f64>,
-            style: BarStyle,
-        ) -> Result<()> {
-            if categories.len() != y_data.len() {
-                anyhow::bail!(
-                    "Categories and Y data must have the same length (categories: {}, y: {})",
-                    categories.len(),
-                    y_data.len()
-                );
-            }
-    
-            if categories.is_empty() {
-                anyhow::bail!("Cannot create bar chart with no data");
-            }
-    
-            let root = BitMapBackend::with_buffer(&mut self.buffer, (self.width, self.height))
-                .into_drawing_area();
-    
-            let is_first_layer = !self.chart_initialized;
-            if is_first_layer {
-                root.fill(&WHITE).context("Failed to fill background")?;
-                self.chart_initialized = true;
-            }
-    
-            let num_categories = categories.len();
-            
-            // Unified logic: Use self.x_range if labels are set, else create local range
-            let x_range = if self.x_labels.is_some() {
-                self.x_range.clone()
-            } else {
-                0.0..(num_categories as f64)
-            };
-    
-            let mut chart = ChartBuilder::on(&root)
-                .margin(10)
-                .caption(self.title.as_deref().unwrap_or(""), ("sans-serif", 20))
-                .x_label_area_size(40)
-                .y_label_area_size(50)
-                .build_cartesian_2d(x_range, self.y_range.clone())
-                .context("Failed to build chart")?;
-    
-            if is_first_layer {
-                // Configure mesh
-                if let Some(labels) = &self.x_labels {
-                    // Use global labels
-                    let labels = labels.clone();
-                    let label_count = labels.len();
-                    let formatter = move |x: &f64| {
-                        let idx = *x as usize;
-                        if idx < labels.len() {
-                            labels[idx].clone()
-                        } else {
-                            String::new()
-                        }
-                    };
-                    chart
-                        .configure_mesh()
-                        .x_labels(label_count)
-                        .x_label_formatter(&formatter)
-                        .draw()
-                        .context("Failed to draw mesh")?;
-                } else {
-                    // Use local categories (Legacy behavior)
-                    let categories_clone = categories.clone();
-                    let formatter = move |x: &f64| {
-                        let idx = *x as usize;
-                        if idx < categories_clone.len() {
-                            categories_clone[idx].clone()
-                        } else {
-                            String::new()
-                        }
-                    };
-                    chart
-                        .configure_mesh()
-                        .x_labels(num_categories)
-                        .x_label_formatter(&formatter)
-                        .draw()
-                        .context("Failed to draw mesh")?;
                 }
-            }
-    
-            // Draw bars
-            let color = parse_color(&style.color);
-            let alpha = style.alpha.unwrap_or(1.0);
-            let color_with_alpha = color.mix(alpha);
-            let bar_width = style.width.unwrap_or(0.8);
-    
-                    for (cat_idx, &y_val) in y_data.iter().enumerate() {
-                        let x_center = cat_idx as f64;
-                        chart
-                            .draw_series(std::iter::once(Rectangle::new(
-                                [
-                                    (x_center - bar_width / 2.0, 0.0),
-                                    (x_center + bar_width / 2.0, y_val),
-                                ],
-                                color_with_alpha.filled(),
-                            )))
-                            .context("Failed to draw bar")?;
-                    }    
-            root.present().context("Failed to present drawing")?;
-    
-            Ok(())
-        }
-        /// Add multiple bar series with dodge or stack positioning
-        pub fn add_bar_group(
-            &mut self,
-            categories: Vec<String>,
-            series: Vec<(Vec<f64>, BarStyle)>, // (y_data, style) for each series
-            position: &str, // "dodge", "stack", or "identity"
-        ) -> Result<()> {
-            if categories.is_empty() {
-                anyhow::bail!("Cannot create bar chart with no categories");
-            }
-    
-            if series.is_empty() {
-                anyhow::bail!("Cannot create bar chart with no series");
-            }
-    
-            let root = BitMapBackend::with_buffer(&mut self.buffer, (self.width, self.height))
-                .into_drawing_area();
-    
-            let is_first_layer = !self.chart_initialized;
-            if is_first_layer {
-                root.fill(&WHITE).context("Failed to fill background")?;
-                self.chart_initialized = true;
-            }
-    
-            let num_categories = categories.len();
-            let num_series = series.len();
-            
-            // Unified logic: Use self.x_range if labels are set, else create local range
-            let x_range = if self.x_labels.is_some() {
-                self.x_range.clone()
-            } else {
-                0.0..(num_categories as f64)
-            };
-    
-            let mut chart = ChartBuilder::on(&root)
-                .margin(10)
-                .caption(self.title.as_deref().unwrap_or(""), ("sans-serif", 20))
-                .x_label_area_size(40)
-                .y_label_area_size(50)
-                .build_cartesian_2d(x_range, self.y_range.clone())
-                .context("Failed to build chart")?;
-    
-            if is_first_layer {
-                // Configure mesh
-                if let Some(labels) = &self.x_labels {
-                    // Use global labels
-                    let labels = labels.clone();
-                    let label_count = labels.len();
-                    let formatter = move |x: &f64| {
-                        let idx = *x as usize;
-                        if idx < labels.len() {
-                            labels[idx].clone()
-                        } else {
-                            String::new()
-                        }
-                    };
-                    chart
-                        .configure_mesh()
-                        .x_labels(label_count)
-                        .x_label_formatter(&formatter)
-                        .draw()
-                        .context("Failed to draw mesh")?;
-                } else {
-                    // Use local categories (Legacy behavior)
-                    let categories_clone = categories.clone();
-                    let formatter = move |x: &f64| {
-                        let idx = *x as usize;
-                        if idx < categories_clone.len() {
-                            categories_clone[idx].clone()
-                        } else {
-                            String::new()
-                        }
-                    };
-                    chart
-                        .configure_mesh()
-                        .x_labels(num_categories)
-                        .x_label_formatter(&formatter)
-                        .draw()
-                        .context("Failed to draw mesh")?;
-                }
-            }
-    
-            match position {            "dodge" => {
-                // Side-by-side bars
-                let bar_width = 0.8 / num_series as f64;
+                LayerOp::Point { x_data, y_data, style, label } => {
+                    let points: Vec<(f64, f64)> = x_data.into_iter().zip(y_data).collect();
+                    let color = parse_color(&style.color);
+                    let size = style.size.unwrap_or(3.0) as i32;
 
-                for (series_idx, (y_data, style)) in series.iter().enumerate() {
+                    let series = chart
+                        .draw_series(points.iter().map(|&(x, y)| {
+                            Circle::new((x, y), size, color.filled())
+                        }))
+                        .context("Failed to draw point series")?;
+
+                    if let Some(label_text) = label {
+                        series.label(label_text)
+                            .legend(move |(x, y)| Circle::new((x + 10, y), size, color.filled()));
+                    }
+                }
+                LayerOp::Bar { categories: _, y_data, style } => {
                     let color = parse_color(&style.color);
                     let alpha = style.alpha.unwrap_or(1.0);
                     let color_with_alpha = color.mix(alpha);
-
-                    for (cat_idx, &y_val) in y_data.iter().enumerate() {
-                        let x_base = cat_idx as f64;
-                        let x_offset = (series_idx as f64 - (num_series as f64 - 1.0) / 2.0) * bar_width;
-                        let x_center = x_base + x_offset;
-
-                        chart
-                            .draw_series(std::iter::once(Rectangle::new(
-                                [
-                                    (x_center - bar_width / 2.0, 0.0),
-                                    (x_center + bar_width / 2.0, y_val),
-                                ],
-                                color_with_alpha.filled(),
-                            )))
-                            .context("Failed to draw bar")?;
-                    }
-                }
-            }
-            "stack" => {
-                // Stacked bars
-                let bar_width = 0.8;
-
-                for cat_idx in 0..num_categories {
-                    let x_center = cat_idx as f64;
-                    let mut y_cumulative = 0.0;
-
-                    for (y_data, style) in series.iter() {
-                        let y_val = y_data[cat_idx];
-                        let color = parse_color(&style.color);
-                        let alpha = style.alpha.unwrap_or(1.0);
-                        let color_with_alpha = color.mix(alpha);
-
-                        chart
-                            .draw_series(std::iter::once(Rectangle::new(
-                                [
-                                    (x_center - bar_width / 2.0, y_cumulative),
-                                    (x_center + bar_width / 2.0, y_cumulative + y_val),
-                                ],
-                                color_with_alpha.filled(),
-                            )))
-                            .context("Failed to draw bar")?;
-
-                        y_cumulative += y_val;
-                    }
-                }
-            }
-            _ => {
-                // Identity (overlapping) - default
-                let bar_width = 0.8;
-
-                for (y_data, style) in series.iter() {
-                    let color = parse_color(&style.color);
-                    let alpha = style.alpha.unwrap_or(0.5); // Default semi-transparent for overlapping
-                    let color_with_alpha = color.mix(alpha);
+                    let bar_width = style.width.unwrap_or(0.8);
 
                     for (cat_idx, &y_val) in y_data.iter().enumerate() {
                         let x_center = cat_idx as f64;
-
                         chart
                             .draw_series(std::iter::once(Rectangle::new(
                                 [
@@ -525,97 +329,131 @@ impl Canvas {
                             .context("Failed to draw bar")?;
                     }
                 }
+                LayerOp::BarGroup { categories, series, position } => {
+                    let num_categories = categories.len();
+                    let num_series = series.len();
+
+                    match position.as_str() {
+                        "dodge" => {
+                            // Side-by-side bars
+                            let bar_width = 0.8 / num_series as f64;
+
+                            for (series_idx, (y_data, style, label)) in series.iter().enumerate() {
+                                let color = parse_color(&style.color);
+                                let alpha = style.alpha.unwrap_or(1.0);
+                                let color_with_alpha = color.mix(alpha);
+
+                                for (cat_idx, &y_val) in y_data.iter().enumerate() {
+                                    let x_base = cat_idx as f64;
+                                    let x_offset = (series_idx as f64 - (num_series as f64 - 1.0) / 2.0) * bar_width;
+                                    let x_center = x_base + x_offset;
+
+                                    let series_elem = chart
+                                        .draw_series(std::iter::once(Rectangle::new(
+                                            [
+                                                (x_center - bar_width / 2.0, 0.0),
+                                                (x_center + bar_width / 2.0, y_val),
+                                            ],
+                                            color_with_alpha.filled(),
+                                        )))
+                                        .context("Failed to draw bar")?;
+
+                                    // Only add label for the first bar of this series
+                                    if cat_idx == 0 {
+                                        if let Some(label_text) = label {
+                                            series_elem.label(label_text)
+                                                .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 15, y + 5)], color_with_alpha.filled()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "stack" => {
+                            // Stacked bars
+                            let bar_width = 0.8;
+
+                            for cat_idx in 0..num_categories {
+                                let x_center = cat_idx as f64;
+                                let mut y_cumulative = 0.0;
+
+                                for (y_data, style, label) in series.iter() {
+                                    let y_val = y_data[cat_idx];
+                                    let color = parse_color(&style.color);
+                                    let alpha = style.alpha.unwrap_or(1.0);
+                                    let color_with_alpha = color.mix(alpha);
+
+                                    let series_elem = chart
+                                        .draw_series(std::iter::once(Rectangle::new(
+                                            [
+                                                (x_center - bar_width / 2.0, y_cumulative),
+                                                (x_center + bar_width / 2.0, y_cumulative + y_val),
+                                            ],
+                                            color_with_alpha.filled(),
+                                        )))
+                                        .context("Failed to draw bar")?;
+
+                                    // Only add label for the first bar of this series
+                                    if cat_idx == 0 {
+                                        if let Some(label_text) = label {
+                                            series_elem.label(label_text)
+                                                .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 15, y + 5)], color_with_alpha.filled()));
+                                        }
+                                    }
+
+                                    y_cumulative += y_val;
+                                }
+                            }
+                        }
+                        _ => {
+                            // Identity (overlapping) - default
+                            let bar_width = 0.8;
+
+                            for (y_data, style, _label) in series.iter() {
+                                let color = parse_color(&style.color);
+                                let alpha = style.alpha.unwrap_or(0.5);
+                                let color_with_alpha = color.mix(alpha);
+
+                                for (cat_idx, &y_val) in y_data.iter().enumerate() {
+                                    let x_center = cat_idx as f64;
+
+                                    chart
+                                        .draw_series(std::iter::once(Rectangle::new(
+                                            [
+                                                (x_center - bar_width / 2.0, 0.0),
+                                                (x_center + bar_width / 2.0, y_val),
+                                            ],
+                                            color_with_alpha.filled(),
+                                        )))
+                                        .context("Failed to draw bar")?;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
+        // Configure and draw the legend
+        chart
+            .configure_series_labels()
+            .background_style(&WHITE.mix(0.8))
+            .border_style(&BLACK)
+            .draw()
+            .context("Failed to draw legend")?;
+
         root.present().context("Failed to present drawing")?;
 
-        Ok(())
-    }
+        // Drop root and chart to release mutable borrow on buffer
+        drop(chart);
+        drop(root);
 
-    /// Add legend entries to the canvas
-    pub fn add_legend(&mut self, entries: Vec<LegendEntry>) -> Result<()> {
-        self.legend_entries = entries;
-        Ok(())
-    }
-
-    /// Draw legend on the canvas
-    fn draw_legend(&mut self) -> Result<()> {
-        if self.legend_entries.is_empty() {
-            return Ok(());
-        }
-
-        let root = BitMapBackend::with_buffer(&mut self.buffer, (self.width, self.height))
-            .into_drawing_area();
-
-        // Calculate legend position and size
-        let legend_x = (self.width as i32) - 150;
-        let legend_y = 50;
-        let entry_height = 20;
-        let legend_height = (self.legend_entries.len() as i32) * entry_height + 20;
-
-        // Draw legend background (semi-transparent white box)
-        root.draw(&Rectangle::new(
-            [
-                (legend_x, legend_y),
-                (legend_x + 140, legend_y + legend_height),
-            ],
-            WHITE.mix(0.9).filled(),
-        ))
-        .context("Failed to draw legend background")?;
-
-        // Draw legend border
-        root.draw(&Rectangle::new(
-            [
-                (legend_x, legend_y),
-                (legend_x + 140, legend_y + legend_height),
-            ],
-            BLACK.stroke_width(1),
-        ))
-        .context("Failed to draw legend border")?;
-
-        // Draw each legend entry
-        for (i, entry) in self.legend_entries.iter().enumerate() {
-            let y_pos = legend_y + 10 + (i as i32) * entry_height;
-            let color = parse_color(&Some(entry.color.clone()));
-
-            // Draw color swatch (small square)
-            root.draw(&Rectangle::new(
-                [
-                    (legend_x + 10, y_pos),
-                    (legend_x + 25, y_pos + 10),
-                ],
-                color.filled(),
-            ))
-            .context("Failed to draw legend swatch")?;
-
-            // Draw label text
-            root.draw(&Text::new(
-                entry.label.clone(),
-                (legend_x + 30, y_pos),
-                ("sans-serif", 12).into_font(),
-            ))
-            .context("Failed to draw legend label")?;
-        }
-
-        root.present().context("Failed to present legend")?;
-
-        Ok(())
-    }
-
-    /// Finalize and encode the canvas as PNG
-    pub fn render(mut self) -> Result<Vec<u8>> {
-        // Draw legend if present
-        if !self.legend_entries.is_empty() {
-            self.draw_legend()?;
-        }
-
+        // Encode as PNG
         let mut png_bytes = Vec::new();
         {
             let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
             encoder
                 .write_image(
-                    &self.buffer,
+                    &buffer,
                     self.width,
                     self.height,
                     image::ColorType::Rgb8,
@@ -896,6 +734,7 @@ mod tests {
                 width: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_ok());
     }
@@ -911,6 +750,7 @@ mod tests {
                 width: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_ok());
     }
@@ -926,6 +766,7 @@ mod tests {
                 width: Some(3.0),
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_ok());
     }
@@ -941,6 +782,7 @@ mod tests {
                 width: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("same length"));
@@ -950,9 +792,9 @@ mod tests {
     fn test_add_line_layer_multiple() {
         let mut canvas = Canvas::new(800, 600, None, vec![1.0, 2.0, 3.0], vec![10.0, 20.0, 30.0]).unwrap();
         // Add 3 line layers
-        canvas.add_line_layer(vec![1.0, 2.0], vec![10.0, 20.0], LineStyle { color: Some("red".to_string()), width: None, alpha: None }).unwrap();
-        canvas.add_line_layer(vec![2.0, 3.0], vec![20.0, 30.0], LineStyle { color: Some("blue".to_string()), width: None, alpha: None }).unwrap();
-        let result = canvas.add_line_layer(vec![1.0, 3.0], vec![10.0, 30.0], LineStyle { color: Some("green".to_string()), width: None, alpha: None });
+        canvas.add_line_layer(vec![1.0, 2.0], vec![10.0, 20.0], LineStyle { color: Some("red".to_string()), width: None, alpha: None }, None).unwrap();
+        canvas.add_line_layer(vec![2.0, 3.0], vec![20.0, 30.0], LineStyle { color: Some("blue".to_string()), width: None, alpha: None }, None).unwrap();
+        let result = canvas.add_line_layer(vec![1.0, 3.0], vec![10.0, 30.0], LineStyle { color: Some("green".to_string()), width: None, alpha: None }, None);
         assert!(result.is_ok());
     }
 
@@ -970,6 +812,7 @@ mod tests {
                 shape: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_ok());
     }
@@ -986,6 +829,7 @@ mod tests {
                 shape: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_ok());
     }
@@ -1002,6 +846,7 @@ mod tests {
                 shape: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_ok());
     }
@@ -1018,6 +863,7 @@ mod tests {
                 shape: None,
                 alpha: None,
             },
+            None,
         );
         assert!(result.is_err());
     }
@@ -1025,8 +871,8 @@ mod tests {
     #[test]
     fn test_add_point_layer_multiple() {
         let mut canvas = Canvas::new(800, 600, None, vec![1.0, 2.0, 3.0], vec![10.0, 20.0, 30.0]).unwrap();
-        canvas.add_point_layer(vec![1.0, 2.0], vec![10.0, 20.0], PointStyle { color: None, size: None, shape: None, alpha: None }).unwrap();
-        let result = canvas.add_point_layer(vec![2.0, 3.0], vec![20.0, 30.0], PointStyle { color: None, size: None, shape: None, alpha: None });
+        canvas.add_point_layer(vec![1.0, 2.0], vec![10.0, 20.0], PointStyle { color: None, size: None, shape: None, alpha: None }, None).unwrap();
+        let result = canvas.add_point_layer(vec![2.0, 3.0], vec![20.0, 30.0], PointStyle { color: None, size: None, shape: None, alpha: None }, None);
         assert!(result.is_ok());
     }
 
@@ -1123,8 +969,8 @@ mod tests {
     fn test_add_bar_group_dodge() {
         let mut canvas = Canvas::new(800, 600, None, vec![0.0, 1.0], vec![10.0, 30.0]).unwrap();
         let series = vec![
-            (vec![10.0, 20.0], BarStyle { color: Some("blue".to_string()), alpha: None, width: None }),
-            (vec![15.0, 25.0], BarStyle { color: Some("red".to_string()), alpha: None, width: None }),
+            (vec![10.0, 20.0], BarStyle { color: Some("blue".to_string()), alpha: None, width: None }, None),
+            (vec![15.0, 25.0], BarStyle { color: Some("red".to_string()), alpha: None, width: None }, None),
         ];
         let result = canvas.add_bar_group(vec!["A".to_string(), "B".to_string()], series, "dodge");
         assert!(result.is_ok());
@@ -1134,8 +980,8 @@ mod tests {
     fn test_add_bar_group_stack() {
         let mut canvas = Canvas::new(800, 600, None, vec![0.0, 1.0], vec![10.0, 60.0]).unwrap();
         let series = vec![
-            (vec![10.0, 20.0], BarStyle { color: Some("blue".to_string()), alpha: None, width: None }),
-            (vec![15.0, 25.0], BarStyle { color: Some("green".to_string()), alpha: None, width: None }),
+            (vec![10.0, 20.0], BarStyle { color: Some("blue".to_string()), alpha: None, width: None }, None),
+            (vec![15.0, 25.0], BarStyle { color: Some("green".to_string()), alpha: None, width: None }, None),
         ];
         let result = canvas.add_bar_group(vec!["A".to_string(), "B".to_string()], series, "stack");
         assert!(result.is_ok());
@@ -1145,8 +991,8 @@ mod tests {
     fn test_add_bar_group_identity() {
         let mut canvas = Canvas::new(800, 600, None, vec![0.0, 1.0], vec![10.0, 30.0]).unwrap();
         let series = vec![
-            (vec![10.0, 20.0], BarStyle { color: Some("blue".to_string()), alpha: Some(0.5), width: None }),
-            (vec![15.0, 25.0], BarStyle { color: Some("red".to_string()), alpha: Some(0.5), width: None }),
+            (vec![10.0, 20.0], BarStyle { color: Some("blue".to_string()), alpha: Some(0.5), width: None }, None),
+            (vec![15.0, 25.0], BarStyle { color: Some("red".to_string()), alpha: Some(0.5), width: None }, None),
         ];
         let result = canvas.add_bar_group(vec!["A".to_string(), "B".to_string()], series, "identity");
         assert!(result.is_ok());
@@ -1168,6 +1014,7 @@ mod tests {
             vec![1.0, 2.0],
             vec![10.0, 20.0],
             LineStyle { color: None, width: None, alpha: None },
+            None,
         ).unwrap();
         let png_bytes = canvas.render().unwrap();
         assert!(is_valid_png(&png_bytes));
@@ -1180,6 +1027,7 @@ mod tests {
             vec![1.0],
             vec![10.0],
             PointStyle { color: None, size: None, shape: None, alpha: None },
+            None,
         ).unwrap();
         let png_bytes = canvas.render().unwrap();
         // Just verify it's a valid PNG
@@ -1194,11 +1042,13 @@ mod tests {
             vec![1.0, 2.0, 3.0],
             vec![10.0, 20.0, 30.0],
             LineStyle { color: Some("blue".to_string()), width: None, alpha: None },
+            None,
         ).unwrap();
         canvas.add_point_layer(
             vec![1.0, 2.0, 3.0],
             vec![10.0, 20.0, 30.0],
             PointStyle { color: Some("red".to_string()), size: Some(5.0), shape: None, alpha: None },
+            None,
         ).unwrap();
         let png_bytes = canvas.render().unwrap();
         assert!(is_valid_png(&png_bytes));
