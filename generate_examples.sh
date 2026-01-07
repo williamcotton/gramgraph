@@ -21,6 +21,14 @@ cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: ty
 echo "Generating bar_stack.png..."
 cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' > examples/bar_stack.png
 
+# Triple Dodged Bar Chart
+echo "Generating bar_triple_dodge.png..."
+cat examples/financials_triple.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge")' > examples/bar_triple_dodge.png
+
+# Triple Stacked Bar Chart
+echo "Generating bar_triple_stack.png..."
+cat examples/financials_triple.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' > examples/bar_triple_stack.png
+
 # Faceted Plot with Color Grouping
 echo "Generating facets.png..."
 cat examples/regional_sales.csv | cargo run -- 'aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region)' > examples/facets.png

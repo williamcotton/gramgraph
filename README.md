@@ -44,6 +44,22 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 
 ![Stacked Bar Chart](examples/bar_stack.png)
 
+### Triple Dodged Bar Chart
+
+```bash
+cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge")' > examples/bar_triple_dodge.png
+```
+
+![Triple Dodged Bar Chart](examples/bar_triple_dodge.png)
+
+### Triple Stacked Bar Chart
+
+```bash
+cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' > examples/bar_triple_stack.png
+```
+
+![Triple Stacked Bar Chart](examples/bar_triple_stack.png)
+
 ### Faceted Plot with Color Grouping
 
 ```bash

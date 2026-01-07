@@ -1,0 +1,13 @@
+quarter,amount,type
+Q1,100,Revenue
+Q1,60,COGS
+Q1,20,OpEx
+Q2,120,Revenue
+Q2,70,COGS
+Q2,25,OpEx
+Q3,110,Revenue
+Q3,65,COGS
+Q3,22,OpEx
+Q4,150,Revenue
+Q4,80,COGS
+Q4,30,OpEx
