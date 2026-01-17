@@ -148,6 +148,38 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 
 ![Merged Theme](examples/theme_merged.png)
 
+### Bold Axis Labels
+
+```bash
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Bold Axis Labels") | theme(axis_text: element_text(face: "bold", size: 14))' > examples/axis_bold.png
+```
+
+![Bold Axis Labels](examples/axis_bold.png)
+
+### Rotated X-Axis Labels
+
+```bash
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Rotated X-Axis Labels") | theme(axis_text: element_text(angle: 90, size: 12))' > examples/axis_rotated.png
+```
+
+![Rotated X-Axis Labels](examples/axis_rotated.png)
+
+### Hidden Ticks
+
+```bash
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | labs(title: "Clean Look - No Ticks") | theme_minimal() | theme(axis_ticks: element_blank())' > examples/axis_no_ticks.png
+```
+
+![Hidden Ticks](examples/axis_no_ticks.png)
+
+### Fully Styled Axes
+
+```bash
+cat examples/regional_sales.csv | gramgraph 'aes(x: region, y: sales, color: product) | bar(position: "dodge") | labs(title: "Fully Styled Axes") | theme(axis_text: element_text(face: "bold", angle: 90, color: "#2E86AB", size: 11), axis_line: element_line(color: "#333333", width: 2))' > examples/axis_styled.png
+```
+
+![Fully Styled Axes](examples/axis_styled.png)
+
 ### Variable Injection
 
 Use `-D` / `--define` to inject variables into your DSL at runtime. Variables use the `$name` syntax.

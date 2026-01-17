@@ -28,6 +28,8 @@ This architecture enables powerful, declarative chart specifications with clean 
 - **Coordinates**: `coord_flip()` for horizontal charts
 - **Visual Customization**: `labs()` for titles/labels, `theme_minimal()` for presets
 - **Hierarchical Theme System**: `element_text()`, `element_line()`, `element_rect()`, `element_blank()` with inheritance
+- **Axis Text Styling**: Bold/italic text (`face`), X-axis label rotation (`angle`), text anchoring (`hjust`/`vjust`)
+- **Tick Visibility Control**: Hide tick marks with `axis_ticks: element_blank()`
 - **Automatic Legends**: Generated for grouped visualizations
 - **Color Palettes**: Category10 scheme with 10 distinct colors
 - **Flexible Parsing**: Order-independent named arguments in DSL
@@ -163,10 +165,16 @@ GramGraph implements a hierarchical theme system inspired by ggplot2, using elem
 - `theme_minimal()`: Clean, white background, no axis lines/ticks, light grid.
 
 **Element Functions:**
-- `element_text(size: n, color: "...", family: "...", face: "bold|italic", angle: n)` - Text styling
+- `element_text(size: n, color: "...", family: "...", face: "bold|italic", angle: n, hjust: 0-1, vjust: 0-1)` - Text styling
 - `element_line(color: "...", width: n, linetype: "solid|dashed|dotted")` - Line styling
 - `element_rect(fill: "...", color: "...", width: n)` - Rectangle styling (backgrounds)
 - `element_blank()` - Remove an element entirely
+
+**Axis Text Rendering Notes:**
+- `face`: Supports "bold", "italic", "plain" (BoldItalic falls back to Bold due to plotters limitation)
+- `angle`: Applied to X-axis labels only; limited to 90-degree increments (0, 90, 180, 270) due to plotters FontTransform
+- `hjust`/`vjust`: Controls text anchor position (0=left/top, 0.5=center, 1=right/bottom)
+- `linetype`: Parsed but **not rendered** for axis lines (plotters ShapeStyle limitation)
 
 **Theme Properties:**
 - `plot_background`: Canvas background (element_rect)
@@ -313,6 +321,69 @@ This separation follows `ggplot2`'s architecture where the Grid graphics system 
 | Scale | `scale.rs` | Domain/range calculation |
 | Compile | `compiler.rs` | **Geometry → Primitives** |
 | Render | `graph.rs` | Primitives → Pixels/SVG |
+
+## Maintaining Documentation
+
+**IMPORTANT**: When adding new features to GramGraph, you MUST update the documentation in the same session:
+
+### Required Steps for New Features
+
+1. **Update `generate_examples.sh`**
+   - Add example commands that demonstrate the new feature
+   - Use descriptive output filenames (e.g., `feature_name.png`)
+   - Run the script to generate the new example images
+
+2. **Update `README.md`**
+   - Add a new section with the example command and image
+   - Follow the existing format: heading, code block, image embed
+   - Place in logical order relative to existing examples
+
+3. **Update `CLAUDE.md`**
+   - Add the feature to the "✅ Implemented" list
+   - Document any new DSL syntax in the appropriate section
+   - Note any limitations or platform-specific behavior
+   - Update relevant code examples
+
+### Example Workflow
+
+```bash
+# 1. Implement feature in code
+# 2. Add example to generate_examples.sh
+echo "Generating new_feature.png..."
+cat examples/data.csv | cargo run -- 'aes(...) | new_feature()' > examples/new_feature.png
+
+# 3. Run the script
+bash generate_examples.sh
+
+# 4. Add to README.md
+### New Feature
+\`\`\`bash
+cat examples/data.csv | gramgraph 'aes(...) | new_feature()' > examples/new_feature.png
+\`\`\`
+![New Feature](examples/new_feature.png)
+
+# 5. Update CLAUDE.md with feature documentation
+```
+
+### Why This Matters
+
+- Users discover features through README examples
+- CLAUDE.md serves as the authoritative reference for Claude Code sessions
+- Example images provide visual verification that features work correctly
+- Consistent documentation reduces support questions and confusion
+
+## Known Limitations
+
+### Plotters Backend Constraints
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Text rotation | Partial | Limited to 90° increments (0, 90, 180, 270) |
+| BoldItalic font | Partial | Falls back to Bold only |
+| Axis linetype | Not rendered | `dashed`/`dotted` parsed but not displayed |
+| Tick color | Not independent | Tick color follows `axis_line` color |
+
+These limitations stem from the plotters library's API constraints, not GramGraph's architecture.
 
 ## License
 

@@ -77,6 +77,24 @@ cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: g
 echo "Generating theme_merged.png..."
 cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Merged Theme Example") | theme_minimal() | theme(plot_title: element_text(size: 20, face: "bold"))' > examples/theme_merged.png
 
+# --- Axis Text Styling Examples ---
+
+# Bold Axis Text
+echo "Generating axis_bold.png..."
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Bold Axis Labels") | theme(axis_text: element_text(face: "bold", size: 14))' > examples/axis_bold.png
+
+# Rotated X-Axis Labels (90 degrees)
+echo "Generating axis_rotated.png..."
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Rotated X-Axis Labels") | theme(axis_text: element_text(angle: 90, size: 12))' > examples/axis_rotated.png
+
+# Hidden Ticks (element_blank)
+echo "Generating axis_no_ticks.png..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Clean Look - No Ticks") | theme_minimal() | theme(axis_ticks: element_blank())' > examples/axis_no_ticks.png
+
+# Combined: Bold, Rotated, Custom Color
+echo "Generating axis_styled.png..."
+cat examples/regional_sales.csv | cargo run -- 'aes(x: region, y: sales, color: product) | bar(position: "dodge") | labs(title: "Fully Styled Axes") | theme(axis_text: element_text(face: "bold", angle: 90, color: "#2E86AB", size: 11), axis_line: element_line(color: "#333333", width: 2))' > examples/axis_styled.png
+
 # --- Variable Injection Examples ---
 
 # Variable injection in aesthetics

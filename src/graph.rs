@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use image::ImageEncoder;
 use plotters::prelude::*;
+use plotters::style::{FontStyle, FontTransform, text_anchor::{HPos, VPos, Pos}};
 use crate::ir::{SceneGraph, PanelScene, DrawCommand};
 use crate::{OutputFormat, RenderOptions};
-use crate::theme_resolve::{ResolvedTheme, parse_color as resolve_color};
+use crate::theme_resolve::{ResolvedTheme, FontFace, parse_color as resolve_color};
 
 /// Style configuration for line layers
 #[derive(Debug, Clone, Default)]
@@ -55,6 +56,42 @@ pub struct ViolinStyle {
     pub width: Option<f64>,
     pub alpha: Option<f64>,
     pub draw_quantiles: Vec<f64>,
+}
+
+/// Convert angle to plotters FontTransform (90-degree increments only)
+fn angle_to_font_transform(angle: f64) -> FontTransform {
+    let normalized = ((angle % 360.0) + 360.0) % 360.0;
+    if normalized >= 315.0 || normalized < 45.0 {
+        FontTransform::None
+    } else if normalized >= 45.0 && normalized < 135.0 {
+        FontTransform::Rotate90
+    } else if normalized >= 135.0 && normalized < 225.0 {
+        FontTransform::Rotate180
+    } else {
+        FontTransform::Rotate270
+    }
+}
+
+/// Convert hjust (0.0-1.0) to plotters HPos
+fn hjust_to_hpos(hjust: f64) -> HPos {
+    if hjust <= 0.25 {
+        HPos::Left
+    } else if hjust >= 0.75 {
+        HPos::Right
+    } else {
+        HPos::Center
+    }
+}
+
+/// Convert vjust (0.0-1.0) to plotters VPos
+fn vjust_to_vpos(vjust: f64) -> VPos {
+    if vjust <= 0.25 {
+        VPos::Top
+    } else if vjust >= 0.75 {
+        VPos::Bottom
+    } else {
+        VPos::Center
+    }
 }
 
 /// The Rendering Backend
@@ -208,12 +245,44 @@ impl Canvas {
                 }
             }
 
-            // Axis text styling
-            let axis_text_style = TextStyle::from((
-                theme.axis_text.family.as_str(),
-                theme.axis_text.size as i32
-            ).into_font()).color(&theme.axis_text.color);
-            mesh.label_style(axis_text_style);
+            // Axis ticks visibility (color follows axis_line due to plotters limitation)
+            if theme.axis_ticks.is_none() {
+                // Blank - hide tick marks by setting size to 0
+                mesh.set_all_tick_mark_size(0i32.percent());
+            }
+            // When axis_ticks is Some, keep default tick size
+            // Note: tick color follows axis_style (plotters limitation)
+
+            // Axis text styling with face, rotation, and anchor support
+            let font_style = match theme.axis_text.face {
+                FontFace::Bold => FontStyle::Bold,
+                FontFace::Italic => FontStyle::Italic,
+                FontFace::BoldItalic => FontStyle::Bold, // Plotters doesn't have BoldItalic
+                FontFace::Plain => FontStyle::Normal,
+            };
+
+            let base_font = (theme.axis_text.family.as_str(), theme.axis_text.size as i32)
+                .into_font()
+                .style(font_style);
+
+            let pos = Pos::new(
+                hjust_to_hpos(theme.axis_text.hjust),
+                vjust_to_vpos(theme.axis_text.vjust),
+            );
+
+            // X-axis labels with rotation support
+            let x_transform = angle_to_font_transform(theme.axis_text.angle);
+            let x_axis_style = TextStyle::from(base_font.clone().transform(x_transform))
+                .color(&theme.axis_text.color)
+                .pos(pos);
+
+            // Y-axis labels without rotation (typically not rotated)
+            let y_axis_style = TextStyle::from(base_font)
+                .color(&theme.axis_text.color)
+                .pos(pos);
+
+            mesh.x_label_style(x_axis_style);
+            mesh.y_label_style(y_axis_style);
         }
 
         if let Some(x_label) = &panel.x_label {
