@@ -152,6 +152,68 @@ impl Canvas {
         // Fill background with resolved theme color
         root.fill(&resolved_theme.plot_background.fill).context("Failed to fill background")?;
 
+        // Calculate header height for title + subtitle
+        let title_size = resolved_theme.plot_title.size;
+        let has_title = scene.labels.title.is_some();
+        let has_subtitle = scene.labels.subtitle.is_some();
+        let has_caption = scene.labels.caption.is_some();
+
+        let header_height: u32 = if has_title || has_subtitle {
+            let mut h = 5u32; // top padding
+            if has_title {
+                h += title_size as u32 + 5;
+            }
+            if has_subtitle {
+                h += (title_size * 0.7) as u32 + 5;
+            }
+            h + 5 // bottom padding
+        } else {
+            0
+        };
+
+        let caption_height: u32 = if has_caption { 30 } else { 0 };
+
+        // Split root into header, main, footer
+        let total_height = scene.height;
+        let main_height = total_height.saturating_sub(header_height).saturating_sub(caption_height);
+
+        let (header_area, rest) = root.split_vertically(header_height);
+        let (main_area, footer_area) = rest.split_vertically(main_height);
+
+        // Draw title and subtitle in header area
+        if has_title || has_subtitle {
+            let mut y_offset = 8i32;
+
+            if let Some(title) = &scene.labels.title {
+                let title_style = TextStyle::from((
+                    resolved_theme.plot_title.family.as_str(),
+                    resolved_theme.plot_title.size as i32
+                ).into_font()).color(&resolved_theme.plot_title.color);
+                header_area.draw_text(title, &title_style, (10, y_offset))?;
+                y_offset += title_size as i32 + 4;
+            }
+
+            if let Some(subtitle) = &scene.labels.subtitle {
+                let subtitle_size = (title_size * 0.7).max(10.0);
+                let subtitle_style = TextStyle::from((
+                    resolved_theme.plot_title.family.as_str(),
+                    subtitle_size as i32
+                ).into_font()).color(&resolved_theme.axis_text.color);
+                header_area.draw_text(subtitle, &subtitle_style, (10, y_offset))?;
+            }
+        }
+
+        // Draw caption in footer area (right-aligned, muted)
+        if let Some(caption) = &scene.labels.caption {
+            let caption_style = TextStyle::from((
+                "sans-serif",
+                11i32
+            ).into_font()).color(&resolved_theme.axis_text.color)
+                .pos(Pos::new(HPos::Right, VPos::Center));
+            let (w, _h) = footer_area.dim_in_pixel();
+            footer_area.draw_text(caption, &caption_style, ((w as i32) - 15, 10))?;
+        }
+
         // Determine Grid Layout
         let max_row = scene.panels.iter().map(|p| p.row).max().unwrap_or(0);
         let max_col = scene.panels.iter().map(|p| p.col).max().unwrap_or(0);
@@ -159,16 +221,7 @@ impl Canvas {
         let rows = max_row + 1;
         let cols = max_col + 1;
 
-        let areas = root.split_evenly((rows, cols));
-
-        // Draw Global Title using resolved theme
-        if let Some(title) = &scene.labels.title {
-            let title_style = TextStyle::from((
-                resolved_theme.plot_title.family.as_str(),
-                resolved_theme.plot_title.size as i32
-            ).into_font()).color(&resolved_theme.plot_title.color);
-            root.draw_text(title, &title_style, (10, 10))?;
-        }
+        let areas = main_area.split_evenly((rows, cols));
 
         for panel in &scene.panels {
             let area_idx = panel.row * cols + panel.col;
@@ -192,12 +245,26 @@ impl Canvas {
         let x_range = panel.x_scale.range.0..panel.x_scale.range.1;
         let y_range = panel.y_scale.range.0..panel.y_scale.range.1;
 
+        // Dynamically calculate x label area size based on axis text angle
+        let x_label_area_size = if theme.has_customization {
+            let angle = theme.axis_text.angle;
+            let normalized = ((angle % 360.0) + 360.0) % 360.0;
+            if (45.0..135.0).contains(&normalized) || (225.0..315.0).contains(&normalized) {
+                // Rotated: need more vertical space for labels
+                (theme.axis_text.size * 6.0).max(80.0) as u32
+            } else {
+                30
+            }
+        } else {
+            30
+        };
+
         let mut chart_builder = ChartBuilder::on(area);
 
         chart_builder
             .margin(10)
             .caption(panel.title.clone().unwrap_or_default(), ("sans-serif", 15))
-            .x_label_area_size(30)
+            .x_label_area_size(x_label_area_size)
             .y_label_area_size(40);
 
         let mut chart = chart_builder
@@ -397,12 +464,20 @@ impl Canvas {
             }
         }
         
-        // Draw Legend if any items (respecting theme legend_position)
-        // Note: Plotters draws legend only if series were labeled
+        // Draw Legend only if there are actually labeled series
         use crate::parser::ast::LegendPosition;
         use plotters::chart::SeriesLabelPosition;
 
-        if theme.legend_position != LegendPosition::None {
+        let has_legend_entries = panel.commands.iter().any(|cmd| {
+            match cmd {
+                DrawCommand::DrawLine { legend, .. } => legend.is_some(),
+                DrawCommand::DrawPoint { legend, .. } => legend.is_some(),
+                DrawCommand::DrawRect { legend, .. } => legend.is_some(),
+                DrawCommand::DrawPolygon { legend, .. } => legend.is_some(),
+            }
+        });
+
+        if has_legend_entries && theme.legend_position != LegendPosition::None {
             let position = match theme.legend_position {
                 LegendPosition::UpperLeft => SeriesLabelPosition::UpperLeft,
                 LegendPosition::UpperMiddle => SeriesLabelPosition::UpperMiddle,
@@ -418,8 +493,9 @@ impl Canvas {
 
             chart.configure_series_labels()
                 .position(position)
-                .background_style(&WHITE.mix(0.8))
-                .border_style(&BLACK)
+                .background_style(theme.panel_background.fill.mix(0.8))
+                .border_style(&theme.axis_text.color)
+                .label_font(("sans-serif", 12).into_font().color(&theme.axis_text.color))
                 .draw()
                 .context("Failed to draw legend")?;
         }

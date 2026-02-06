@@ -4,7 +4,7 @@ use crate::parser::ast::{Layer, BarPosition};
 use crate::graph::{LineStyle, PointStyle, BarStyle, BoxplotStyle, RibbonStyle};
 use crate::RenderOptions;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // =============================================================================
 // Boxplot Geometry Helpers
@@ -137,12 +137,20 @@ pub fn compile_geometry(
     // Iterate panels (zipped with scales)
     for (panel_data, panel_scales) in data.panels.into_iter().zip(scales.panels.into_iter()) {
         let mut commands = Vec::new();
+        let mut emitted_legend_keys: HashSet<String> = HashSet::new();
 
         // Iterate layers
         for (layer_idx, layer_data) in panel_data.layers.into_iter().enumerate() {
             // Retrieve original layer spec for metadata (position, etc.)
             let layer_spec = &spec.layers[layer_idx];
-            
+
+            // Determine if this layer has a meaningful grouping aesthetic
+            let layer_aes = &spec.layers[layer_idx].aesthetics;
+            let has_grouping = layer_aes.color.is_some()
+                || layer_aes.size.is_some()
+                || layer_aes.shape.is_some()
+                || layer_aes.alpha.is_some();
+
             // Handle Positioning Logic
             let (_is_bar, position) = match &layer_spec.original_layer {
                 Layer::Bar(b) => (true, b.position.clone()),
@@ -180,7 +188,11 @@ pub fn compile_geometry(
                         commands.push(DrawCommand::DrawLine {
                             points,
                             style: style.clone(),
-                            legend: Some(group.key.clone()),
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                Some(group.key.clone())
+                            } else {
+                                None
+                            },
                         });
                     }
                     RenderStyle::Point(style) => {
@@ -190,7 +202,11 @@ pub fn compile_geometry(
                         commands.push(DrawCommand::DrawPoint {
                             points,
                             style: style.clone(),
-                            legend: Some(group.key.clone()),
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                Some(group.key.clone())
+                            } else {
+                                None
+                            },
                         });
                     }
                     RenderStyle::Bar(style) => {
@@ -236,7 +252,11 @@ pub fn compile_geometry(
                                 tl,
                                 br,
                                 style: style.clone(),
-                                legend: if i == 0 { Some(group.key.clone()) } else { None },
+                                legend: if i == 0 && has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
                             });
                         }
                     }
@@ -313,7 +333,11 @@ pub fn compile_geometry(
                                 tl: geom.box_tl,
                                 br: geom.box_br,
                                 style: box_style.clone(),
-                                legend: if i == 0 { Some(group.key.clone()) } else { None },
+                                legend: if i == 0 && has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
                             });
 
                             // 4. Median line (white for contrast)
@@ -354,7 +378,11 @@ pub fn compile_geometry(
                         commands.push(DrawCommand::DrawPolygon {
                             points,
                             style: style.clone(),
-                            legend: Some(group.key.clone()),
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                Some(group.key.clone())
+                            } else {
+                                None
+                            },
                         });
                     }
                     RenderStyle::Violin(style) => {
@@ -476,7 +504,11 @@ pub fn compile_geometry(
                                     color: style.color.clone(),
                                     alpha: style.alpha.or(Some(0.7)),
                                 },
-                                legend: if i == 0 { Some(group.key.clone()) } else { None },
+                                legend: if i == 0 && has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
                             });
 
                             // Draw quantile lines (if any)
