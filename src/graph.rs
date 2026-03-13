@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
+use plotters::coord::ranged1d::{Ranged, ValueFormatter};
 use image::ImageEncoder;
+use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
 use plotters::style::{FontStyle, FontTransform, text_anchor::{HPos, VPos, Pos}};
 use crate::ir::{SceneGraph, PanelScene, DrawCommand};
@@ -107,6 +109,240 @@ fn vjust_to_vpos(vjust: f64) -> VPos {
     } else {
         VPos::Center
     }
+}
+
+fn build_axis_text_styles<'a>(theme: &'a ResolvedTheme) -> (TextStyle<'a>, TextStyle<'a>, TextStyle<'a>) {
+    let font_style = match theme.axis_text.face {
+        FontFace::Bold => FontStyle::Bold,
+        FontFace::Italic => FontStyle::Italic,
+        FontFace::BoldItalic => FontStyle::Bold, // Plotters doesn't have BoldItalic
+        FontFace::Plain => FontStyle::Normal,
+    };
+
+    let base_font = (theme.axis_text.family.as_str(), theme.axis_text.size as i32)
+        .into_font()
+        .style(font_style);
+
+    let pos = Pos::new(
+        hjust_to_hpos(theme.axis_text.hjust),
+        vjust_to_vpos(theme.axis_text.vjust),
+    );
+
+    let x_axis_style = TextStyle::from(base_font.clone().transform(angle_to_font_transform(theme.axis_text.angle)))
+        .color(&theme.axis_text.color)
+        .pos(pos);
+
+    let y_axis_style = TextStyle::from(base_font.clone())
+        .color(&theme.axis_text.color)
+        .pos(pos);
+
+    let axis_desc_style = TextStyle::from(base_font)
+        .color(&theme.axis_text.color);
+
+    (x_axis_style, y_axis_style, axis_desc_style)
+}
+
+fn estimate_text_size<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    text: &str,
+    style: &TextStyle,
+    font_size: f64,
+) -> (u32, u32) {
+    area.estimate_text_size(text, style).unwrap_or_else(|_| {
+        let width = ((text.chars().count() as f64) * font_size * 0.6).ceil().max(1.0) as u32;
+        let height = (font_size * 1.3).ceil().max(1.0) as u32;
+        (width, height)
+    })
+}
+
+fn max_text_dimensions<DB: DrawingBackend, I, S>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    labels: I,
+    style: &TextStyle,
+    font_size: f64,
+) -> (u32, u32)
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    labels.into_iter().fold((0u32, 0u32), |(max_w, max_h), label| {
+        let (w, h) = estimate_text_size(area, label.as_ref(), style, font_size);
+        (max_w.max(w), max_h.max(h))
+    })
+}
+
+fn estimate_numeric_tick_label_width<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    range: (f64, f64),
+    style: &TextStyle,
+    font_size: f64,
+) -> u32 {
+    let coord: RangedCoordf64 = (range.0..range.1).into();
+    let mut labels: Vec<String> = coord
+        .key_points(11)
+        .into_iter()
+        .map(|value| coord.format_ext(&value))
+        .collect();
+
+    if labels.is_empty() {
+        labels.push(coord.format_ext(&range.0));
+        labels.push(coord.format_ext(&range.1));
+    }
+
+    let (max_width, _) = max_text_dimensions(area, labels.iter().map(String::as_str), style, font_size);
+    max_width
+}
+
+fn effective_tick_label_gap(theme: &ResolvedTheme) -> u32 {
+    // Plotters' default tick size is 5px, which yields a 10px label gap.
+    if theme.axis_ticks.is_some() || theme.axis_line.is_none() {
+        10
+    } else {
+        0
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AxisLayout {
+    x_label_area_size: u32,
+    y_label_area_size: u32,
+    tick_gap: u32,
+    max_y_label_width: u32,
+    y_desc_width: u32,
+    y_label_to_desc_gap: u32,
+    outer_padding: u32,
+}
+
+fn calculate_axis_layout<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    panel: &PanelScene,
+    theme: &ResolvedTheme,
+    y_axis_style: &TextStyle,
+    axis_desc_style: &TextStyle,
+) -> AxisLayout {
+    let font_size = theme.axis_text.size.max(1.0);
+
+    let (max_x_label_width, max_x_label_height) = if panel.x_scale.is_categorical {
+        max_text_dimensions(area, panel.x_scale.categories.iter().map(String::as_str), y_axis_style, font_size)
+    } else {
+        (0, 0)
+    };
+
+    let max_y_label_width = if panel.y_scale.is_categorical {
+        let (max_width, _) = max_text_dimensions(
+            area,
+            panel.y_scale.categories.iter().map(String::as_str),
+            y_axis_style,
+            font_size,
+        );
+        max_width
+    } else {
+        estimate_numeric_tick_label_width(area, panel.y_scale.range, y_axis_style, font_size)
+    };
+
+    let (_, x_desc_height) = panel.x_label.as_ref()
+        .map(|label| estimate_text_size(area, label, axis_desc_style, font_size))
+        .unwrap_or((0, 0));
+
+    let y_desc_width = panel.y_label.as_ref()
+        .map(|label| {
+            let (_, unrotated_height) = estimate_text_size(area, label, axis_desc_style, font_size);
+            unrotated_height
+        })
+        .unwrap_or(0);
+
+    let normalized_angle = ((theme.axis_text.angle % 360.0) + 360.0) % 360.0;
+    let x_label_vertical_extent = if (45.0..135.0).contains(&normalized_angle) || (225.0..315.0).contains(&normalized_angle) {
+        max_x_label_width
+    } else {
+        max_x_label_height
+    };
+
+    let tick_gap: u32 = effective_tick_label_gap(theme);
+    let x_label_to_desc_gap: u32 = 6;
+    let y_label_to_desc_gap: u32 = 16;
+    let outer_padding: u32 = 4;
+
+    let x_tick_block = if panel.x_scale.is_categorical {
+        tick_gap.saturating_add(x_label_vertical_extent)
+    } else {
+        tick_gap.saturating_add(font_size.ceil() as u32)
+    };
+
+    let y_tick_block = if panel.y_scale.is_categorical {
+        tick_gap.saturating_add(max_y_label_width)
+    } else {
+        tick_gap.saturating_add(font_size.ceil() as u32)
+    };
+
+    let x_desc_block = if panel.x_label.is_some() {
+        x_label_to_desc_gap.saturating_add(x_desc_height)
+    } else {
+        0
+    };
+
+    let y_desc_block = if panel.y_label.is_some() {
+        y_label_to_desc_gap.saturating_add(y_desc_width)
+    } else {
+        0
+    };
+
+    let x_label_area_size = x_tick_block
+        .saturating_add(x_desc_block)
+        .saturating_add(outer_padding)
+        .max(30);
+    let y_label_area_size = y_tick_block
+        .saturating_add(y_desc_block)
+        .saturating_add(outer_padding)
+        .max(40);
+
+    AxisLayout {
+        x_label_area_size,
+        y_label_area_size,
+        tick_gap,
+        max_y_label_width,
+        y_desc_width,
+        y_label_to_desc_gap,
+        outer_padding,
+    }
+}
+
+fn draw_manual_y_axis_desc<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    chart: &ChartContext<'_, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    panel: &PanelScene,
+    axis_layout: AxisLayout,
+    axis_desc_style: &TextStyle,
+) -> Result<()>
+where
+    DB::ErrorType: 'static,
+{
+    let Some(y_label) = panel.y_label.as_ref() else {
+        return Ok(());
+    };
+
+    let (panel_x, panel_y) = area.get_pixel_range();
+    let (plot_x, plot_y) = chart.plotting_area().get_pixel_range();
+
+    let plot_left = plot_x.start - panel_x.start;
+    let plot_mid_y = (plot_y.start + plot_y.end) / 2 - panel_y.start;
+
+    let title_center_x = plot_left
+        - axis_layout.tick_gap as i32
+        - axis_layout.max_y_label_width as i32
+        - axis_layout.y_label_to_desc_gap as i32
+        - (axis_layout.y_desc_width as i32 / 2)
+        + axis_layout.outer_padding as i32 / 2;
+
+    let title_style = axis_desc_style
+        .clone()
+        .transform(FontTransform::Rotate270)
+        .pos(Pos::new(HPos::Center, VPos::Center));
+
+    area.draw_text(y_label, &title_style, (title_center_x.max(0), plot_mid_y))
+        .context("Failed to draw y-axis description")?;
+
+    Ok(())
 }
 
 /// The Rendering Backend
@@ -260,27 +496,22 @@ impl Canvas {
         let x_range = panel.x_scale.range.0..panel.x_scale.range.1;
         let y_range = panel.y_scale.range.0..panel.y_scale.range.1;
 
-        // Dynamically calculate x label area size based on axis text angle
-        let x_label_area_size = if theme.has_customization {
-            let angle = theme.axis_text.angle;
-            let normalized = ((angle % 360.0) + 360.0) % 360.0;
-            if (45.0..135.0).contains(&normalized) || (225.0..315.0).contains(&normalized) {
-                // Rotated: need more vertical space for labels
-                (theme.axis_text.size * 6.0).max(80.0) as u32
-            } else {
-                30
-            }
-        } else {
-            30
-        };
+        let (x_axis_style, y_axis_style, axis_desc_style) = build_axis_text_styles(theme);
+        let axis_layout = calculate_axis_layout(
+            area,
+            panel,
+            theme,
+            &y_axis_style,
+            &axis_desc_style,
+        );
 
         let mut chart_builder = ChartBuilder::on(area);
 
         chart_builder
-            .margin(10)
+            .margin(15)
             .caption(panel.title.clone().unwrap_or_default(), ("sans-serif", 15))
-            .x_label_area_size(x_label_area_size)
-            .y_label_area_size(40);
+            .x_label_area_size(axis_layout.x_label_area_size)
+            .y_label_area_size(axis_layout.y_label_area_size);
 
         let mut chart = chart_builder
             .build_cartesian_2d(x_range, y_range)
@@ -329,49 +560,24 @@ impl Canvas {
 
             // Axis ticks visibility (color follows axis_line due to plotters limitation)
             if theme.axis_ticks.is_none() {
-                // Blank - hide tick marks by setting size to 0
-                mesh.set_all_tick_mark_size(0i32.percent());
+                if theme.axis_line.is_none() {
+                    // Preserve the default plot-to-label spacing while keeping ticks invisible.
+                    mesh.set_all_tick_mark_size(5);
+                } else {
+                    // When the axis line remains visible, keep tick marks fully collapsed.
+                    mesh.set_all_tick_mark_size(0i32.percent());
+                }
             }
             // When axis_ticks is Some, keep default tick size
             // Note: tick color follows axis_style (plotters limitation)
 
-            // Axis text styling with face, rotation, and anchor support
-            let font_style = match theme.axis_text.face {
-                FontFace::Bold => FontStyle::Bold,
-                FontFace::Italic => FontStyle::Italic,
-                FontFace::BoldItalic => FontStyle::Bold, // Plotters doesn't have BoldItalic
-                FontFace::Plain => FontStyle::Normal,
-            };
-
-            let base_font = (theme.axis_text.family.as_str(), theme.axis_text.size as i32)
-                .into_font()
-                .style(font_style);
-
-            let pos = Pos::new(
-                hjust_to_hpos(theme.axis_text.hjust),
-                vjust_to_vpos(theme.axis_text.vjust),
-            );
-
-            // X-axis labels with rotation support
-            let x_transform = angle_to_font_transform(theme.axis_text.angle);
-            let x_axis_style = TextStyle::from(base_font.clone().transform(x_transform))
-                .color(&theme.axis_text.color)
-                .pos(pos);
-
-            // Y-axis labels without rotation (typically not rotated)
-            let y_axis_style = TextStyle::from(base_font)
-                .color(&theme.axis_text.color)
-                .pos(pos);
-
             mesh.x_label_style(x_axis_style);
             mesh.y_label_style(y_axis_style);
+            mesh.axis_desc_style(axis_desc_style.clone());
         }
 
         if let Some(x_label) = &panel.x_label {
             mesh.x_desc(x_label);
-        }
-        if let Some(y_label) = &panel.y_label {
-            mesh.y_desc(y_label);
         }
         
         // Custom X Labels if categorical
@@ -413,6 +619,8 @@ impl Canvas {
         }
         
         mesh.draw().context("Failed to draw mesh")?;
+
+        draw_manual_y_axis_desc(area, &chart, panel, axis_layout, &axis_desc_style)?;
 
         // Draw Commands
         for cmd in &panel.commands {
@@ -524,5 +732,135 @@ fn parse_color(color_str: &Option<String>, default_color: RGBColor) -> RGBColor 
     match color_str.as_deref() {
         Some(s) => resolve_color(s).unwrap_or(default_color),
         None => default_color,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_axis_text_styles, calculate_axis_layout};
+    use crate::ir::{DrawCommand, PanelScene, Scale};
+    use crate::parser::ast::Theme;
+    use plotters::drawing::IntoDrawingArea;
+    use plotters::prelude::BitMapBackend;
+
+    fn sample_panel() -> PanelScene {
+        PanelScene {
+            row: 0,
+            col: 0,
+            title: None,
+            x_label: Some("Day".to_string()),
+            y_label: Some("Time of Day".to_string()),
+            x_scale: Scale {
+                domain: (0.0, 4.0),
+                range: (0.0, 4.0),
+                is_categorical: true,
+                categories: vec![
+                    "Fri".to_string(),
+                    "Mon".to_string(),
+                    "Thu".to_string(),
+                    "Tue".to_string(),
+                    "Wed".to_string(),
+                ],
+            },
+            y_scale: Scale {
+                domain: (0.0, 2.0),
+                range: (0.0, 2.0),
+                is_categorical: true,
+                categories: vec![
+                    "Morning".to_string(),
+                    "Evening".to_string(),
+                    "Afternoon".to_string(),
+                ],
+            },
+            commands: Vec::<DrawCommand>::new(),
+        }
+    }
+
+    fn numeric_y_panel() -> PanelScene {
+        PanelScene {
+            row: 0,
+            col: 0,
+            title: None,
+            x_label: Some("Value".to_string()),
+            y_label: Some("Density".to_string()),
+            x_scale: Scale {
+                domain: (-0.5, 7.2),
+                range: (-0.5, 7.2),
+                is_categorical: false,
+                categories: vec![],
+            },
+            y_scale: Scale {
+                domain: (0.0, 0.3),
+                range: (0.0, 0.3),
+                is_categorical: false,
+                categories: vec![],
+            },
+            commands: Vec::<DrawCommand>::new(),
+        }
+    }
+
+    #[test]
+    fn axis_area_sizes_expand_for_categorical_axes_with_titles() {
+        let mut buffer = vec![0u8; 800 * 600 * 3];
+        let area = BitMapBackend::with_buffer(&mut buffer, (800, 600)).into_drawing_area();
+        let theme = Theme::default().resolve();
+        let panel = sample_panel();
+
+        let (_, y_axis_style, axis_desc_style) = build_axis_text_styles(&theme);
+        let layout = calculate_axis_layout(
+            &area,
+            &panel,
+            &theme,
+            &y_axis_style,
+            &axis_desc_style,
+        );
+
+        assert!(layout.x_label_area_size > 30, "expected bottom label area to grow, got {}", layout.x_label_area_size);
+        assert!(layout.y_label_area_size > 40, "expected left label area to grow, got {}", layout.y_label_area_size);
+    }
+
+    #[test]
+    fn rotated_x_labels_get_more_vertical_space() {
+        let mut buffer = vec![0u8; 800 * 600 * 3];
+        let area = BitMapBackend::with_buffer(&mut buffer, (800, 600)).into_drawing_area();
+        let mut theme = Theme::default().resolve();
+        theme.axis_text.angle = 90.0;
+        let mut panel = sample_panel();
+        panel.x_scale.categories = vec![
+            "Very Long Monday Label".to_string(),
+            "Very Long Tuesday Label".to_string(),
+            "Very Long Wednesday Label".to_string(),
+        ];
+
+        let (_, y_axis_style, axis_desc_style) = build_axis_text_styles(&theme);
+        let layout = calculate_axis_layout(
+            &area,
+            &panel,
+            &theme,
+            &y_axis_style,
+            &axis_desc_style,
+        );
+
+        assert!(layout.x_label_area_size >= 80, "expected rotated labels to reserve more space, got {}", layout.x_label_area_size);
+    }
+
+    #[test]
+    fn numeric_y_axes_reserve_tick_label_width() {
+        let mut buffer = vec![0u8; 800 * 600 * 3];
+        let area = BitMapBackend::with_buffer(&mut buffer, (800, 600)).into_drawing_area();
+        let theme = Theme::default().resolve();
+        let panel = numeric_y_panel();
+
+        let (_, y_axis_style, axis_desc_style) = build_axis_text_styles(&theme);
+        let layout = calculate_axis_layout(
+            &area,
+            &panel,
+            &theme,
+            &y_axis_style,
+            &axis_desc_style,
+        );
+
+        assert!(layout.max_y_label_width > 0, "expected numeric y labels to reserve width");
+        assert!(layout.y_label_area_size > 40, "expected left label area to grow, got {}", layout.y_label_area_size);
     }
 }
