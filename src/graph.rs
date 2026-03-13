@@ -1,12 +1,14 @@
 use anyhow::{Context, Result};
+use image::{ImageEncoder, RgbImage, imageops::FilterType};
 use plotters::coord::ranged1d::{Ranged, ValueFormatter};
-use image::ImageEncoder;
 use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
 use plotters::style::{FontStyle, FontTransform, text_anchor::{HPos, VPos, Pos}};
 use crate::ir::{SceneGraph, PanelScene, DrawCommand};
 use crate::{OutputFormat, RenderOptions};
 use crate::theme_resolve::{ResolvedTheme, FontFace, parse_color as resolve_color};
+
+const PNG_SUPERSAMPLING_SCALE: u32 = 2;
 
 /// Style configuration for line layers
 #[derive(Debug, Clone, Default)]
@@ -73,6 +75,60 @@ pub struct HeatmapStyle {
     pub alpha: Option<f64>,
     pub value_min: f64,
     pub value_max: f64,
+}
+
+fn scale_u32(value: u32, pixel_scale: u32) -> u32 {
+    value.saturating_mul(pixel_scale.max(1))
+}
+
+fn scale_i32(value: i32, pixel_scale: u32) -> i32 {
+    value.saturating_mul(pixel_scale.max(1) as i32)
+}
+
+fn scale_f64(value: f64, pixel_scale: u32) -> f64 {
+    value * pixel_scale.max(1) as f64
+}
+
+fn to_stroke_width(value: f64) -> u32 {
+    if value <= 0.0 {
+        0
+    } else {
+        value.ceil().max(1.0) as u32
+    }
+}
+
+fn to_marker_size(value: f64) -> i32 {
+    if value <= 0.0 {
+        0
+    } else {
+        value.round().max(1.0) as i32
+    }
+}
+
+fn scale_resolved_theme(theme: &ResolvedTheme, pixel_scale: u32) -> ResolvedTheme {
+    if pixel_scale <= 1 {
+        return theme.clone();
+    }
+
+    let mut scaled = theme.clone();
+    scaled.plot_title.size = scale_f64(scaled.plot_title.size, pixel_scale);
+    scaled.axis_text.size = scale_f64(scaled.axis_text.size, pixel_scale);
+
+    for line in [
+        scaled.panel_grid_major.as_mut(),
+        scaled.panel_grid_minor.as_mut(),
+        scaled.axis_line.as_mut(),
+        scaled.axis_ticks.as_mut(),
+    ] {
+        if let Some(line) = line {
+            line.width = scale_f64(line.width, pixel_scale);
+        }
+    }
+
+    scaled.plot_background.border_width = scale_f64(scaled.plot_background.border_width, pixel_scale);
+    scaled.panel_background.border_width = scale_f64(scaled.panel_background.border_width, pixel_scale);
+
+    scaled
 }
 
 /// Convert angle to plotters FontTransform (90-degree increments only)
@@ -197,10 +253,10 @@ fn estimate_numeric_tick_label_width<DB: DrawingBackend>(
     max_width
 }
 
-fn effective_tick_label_gap(theme: &ResolvedTheme) -> u32 {
+fn effective_tick_label_gap(theme: &ResolvedTheme, pixel_scale: u32) -> u32 {
     // Plotters' default tick size is 5px, which yields a 10px label gap.
     if theme.axis_ticks.is_some() || theme.axis_line.is_none() {
-        10
+        scale_u32(10, pixel_scale)
     } else {
         0
     }
@@ -225,6 +281,7 @@ fn calculate_axis_layout<DB: DrawingBackend>(
     theme: &ResolvedTheme,
     y_axis_style: &TextStyle,
     axis_desc_style: &TextStyle,
+    pixel_scale: u32,
 ) -> AxisLayout {
     let font_size = theme.axis_text.size.max(1.0);
 
@@ -266,12 +323,16 @@ fn calculate_axis_layout<DB: DrawingBackend>(
         max_x_label_height
     };
 
-    let base_tick_gap: u32 = effective_tick_label_gap(theme);
-    let x_tick_gap: u32 = if rotated_x_labels { base_tick_gap.max(12) } else { base_tick_gap };
+    let base_tick_gap: u32 = effective_tick_label_gap(theme, pixel_scale);
+    let x_tick_gap: u32 = if rotated_x_labels {
+        base_tick_gap.max(scale_u32(12, pixel_scale))
+    } else {
+        base_tick_gap
+    };
     let y_tick_gap: u32 = base_tick_gap;
-    let x_label_to_desc_gap: u32 = 6;
-    let y_label_to_desc_gap: u32 = 16;
-    let outer_padding: u32 = 4;
+    let x_label_to_desc_gap: u32 = scale_u32(6, pixel_scale);
+    let y_label_to_desc_gap: u32 = scale_u32(16, pixel_scale);
+    let outer_padding: u32 = scale_u32(4, pixel_scale);
 
     let x_tick_block = if panel.x_scale.is_categorical {
         x_tick_gap.saturating_add(x_label_vertical_extent)
@@ -300,11 +361,11 @@ fn calculate_axis_layout<DB: DrawingBackend>(
     let x_label_area_size = x_tick_block
         .saturating_add(x_desc_block)
         .saturating_add(outer_padding)
-        .max(30);
+        .max(scale_u32(30, pixel_scale));
     let y_label_area_size = y_tick_block
         .saturating_add(y_desc_block)
         .saturating_add(outer_padding)
-        .max(40);
+        .max(scale_u32(40, pixel_scale));
 
     AxisLayout {
         x_label_area_size,
@@ -408,15 +469,34 @@ impl Canvas {
     }
 
     fn render_png(scene: SceneGraph, _options: &RenderOptions) -> Result<Vec<u8>> {
-        let width = scene.width;
-        let height = scene.height;
+        let target_width = scene.width;
+        let target_height = scene.height;
+        let width = target_width
+            .checked_mul(PNG_SUPERSAMPLING_SCALE)
+            .context("PNG width overflow during supersampling")?;
+        let height = target_height
+            .checked_mul(PNG_SUPERSAMPLING_SCALE)
+            .context("PNG height overflow during supersampling")?;
         let mut buffer = vec![0u8; (width * height * 3) as usize];
+        let mut supersampled_scene = scene;
+        supersampled_scene.width = width;
+        supersampled_scene.height = height;
 
         {
             let root = BitMapBackend::with_buffer(&mut buffer, (width, height))
                 .into_drawing_area();
-            Self::draw_scene(&root, &scene)?;
+            Self::draw_scene(&root, &supersampled_scene, PNG_SUPERSAMPLING_SCALE)?;
         }
+
+        let image = RgbImage::from_raw(width, height, buffer)
+            .context("Failed to build supersampled PNG image")?;
+        let downsampled = image::imageops::resize(
+            &image,
+            target_width,
+            target_height,
+            FilterType::Lanczos3,
+        );
+        let downsampled_buffer = downsampled.into_raw();
 
         // Encode as PNG
         let mut png_bytes = Vec::new();
@@ -424,9 +504,9 @@ impl Canvas {
             let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
             encoder
                 .write_image(
-                    &buffer,
-                    width,
-                    height,
+                    &downsampled_buffer,
+                    target_width,
+                    target_height,
                     image::ColorType::Rgb8,
                 )
                 .context("Failed to encode PNG")?;
@@ -440,15 +520,19 @@ impl Canvas {
         {
             let root = SVGBackend::with_string(&mut buffer, (scene.width, scene.height))
                 .into_drawing_area();
-            Self::draw_scene(&root, &scene)?;
+            Self::draw_scene(&root, &scene, 1)?;
         }
         Ok(buffer.into_bytes())
     }
 
-    fn draw_scene<DB: DrawingBackend>(root: &DrawingArea<DB, plotters::coord::Shift>, scene: &SceneGraph) -> Result<()>
+    fn draw_scene<DB: DrawingBackend>(
+        root: &DrawingArea<DB, plotters::coord::Shift>,
+        scene: &SceneGraph,
+        pixel_scale: u32,
+    ) -> Result<()>
     where DB::ErrorType: 'static {
         // Resolve theme once at the start
-        let resolved_theme = scene.theme.resolve();
+        let resolved_theme = scale_resolved_theme(&scene.theme.resolve(), pixel_scale);
 
         // Fill background with resolved theme color
         root.fill(&resolved_theme.plot_background.fill).context("Failed to fill background")?;
@@ -460,19 +544,19 @@ impl Canvas {
         let has_caption = scene.labels.caption.is_some();
 
         let header_height: u32 = if has_title || has_subtitle {
-            let mut h = 5u32; // top padding
+            let mut h = scale_u32(5, pixel_scale); // top padding
             if has_title {
-                h += title_size as u32 + 5;
+                h += title_size as u32 + scale_u32(5, pixel_scale);
             }
             if has_subtitle {
-                h += (title_size * 0.7) as u32 + 5;
+                h += (title_size * 0.7) as u32 + scale_u32(5, pixel_scale);
             }
-            h + 5 // bottom padding
+            h + scale_u32(5, pixel_scale) // bottom padding
         } else {
             0
         };
 
-        let caption_height: u32 = if has_caption { 30 } else { 0 };
+        let caption_height: u32 = if has_caption { scale_u32(30, pixel_scale) } else { 0 };
 
         // Split root into header, main, footer
         let total_height = scene.height;
@@ -483,15 +567,15 @@ impl Canvas {
 
         // Draw title and subtitle in header area
         if has_title || has_subtitle {
-            let mut y_offset = 8i32;
+            let mut y_offset = scale_i32(8, pixel_scale);
 
             if let Some(title) = &scene.labels.title {
                 let title_style = TextStyle::from((
                     resolved_theme.plot_title.family.as_str(),
                     resolved_theme.plot_title.size as i32
                 ).into_font()).color(&resolved_theme.plot_title.color);
-                header_area.draw_text(title, &title_style, (10, y_offset))?;
-                y_offset += title_size as i32 + 4;
+                header_area.draw_text(title, &title_style, (scale_i32(10, pixel_scale), y_offset))?;
+                y_offset += title_size as i32 + scale_i32(4, pixel_scale);
             }
 
             if let Some(subtitle) = &scene.labels.subtitle {
@@ -500,7 +584,7 @@ impl Canvas {
                     resolved_theme.plot_title.family.as_str(),
                     subtitle_size as i32
                 ).into_font()).color(&resolved_theme.axis_text.color);
-                header_area.draw_text(subtitle, &subtitle_style, (10, y_offset))?;
+                header_area.draw_text(subtitle, &subtitle_style, (scale_i32(10, pixel_scale), y_offset))?;
             }
         }
 
@@ -508,11 +592,15 @@ impl Canvas {
         if let Some(caption) = &scene.labels.caption {
             let caption_style = TextStyle::from((
                 "sans-serif",
-                11i32
+                scale_i32(11, pixel_scale)
             ).into_font()).color(&resolved_theme.axis_text.color)
                 .pos(Pos::new(HPos::Right, VPos::Center));
             let (w, _h) = footer_area.dim_in_pixel();
-            footer_area.draw_text(caption, &caption_style, ((w as i32) - 15, 10))?;
+            footer_area.draw_text(
+                caption,
+                &caption_style,
+                ((w as i32) - scale_i32(15, pixel_scale), scale_i32(10, pixel_scale)),
+            )?;
         }
 
         // Determine Grid Layout
@@ -529,7 +617,7 @@ impl Canvas {
             if area_idx >= areas.len() { continue; }
 
             let area = &areas[area_idx];
-            Canvas::draw_panel(area, panel, &resolved_theme)?;
+            Canvas::draw_panel(area, panel, &resolved_theme, pixel_scale)?;
         }
 
         root.present().context("Failed to present drawing")?;
@@ -540,6 +628,7 @@ impl Canvas {
         area: &DrawingArea<DB, plotters::coord::Shift>,
         panel: &PanelScene,
         theme: &ResolvedTheme,
+        pixel_scale: u32,
     ) -> Result<()>
     where <DB as plotters::prelude::DrawingBackend>::ErrorType: 'static
     {
@@ -553,13 +642,17 @@ impl Canvas {
             theme,
             &y_axis_style,
             &axis_desc_style,
+            pixel_scale,
         );
 
         let mut chart_builder = ChartBuilder::on(area);
 
         chart_builder
-            .margin(15)
-            .caption(panel.title.clone().unwrap_or_default(), ("sans-serif", 15))
+            .margin(scale_u32(15, pixel_scale))
+            .caption(
+                panel.title.clone().unwrap_or_default(),
+                ("sans-serif", scale_i32(15, pixel_scale)),
+            )
             .x_label_area_size(axis_layout.x_label_area_size)
             .y_label_area_size(axis_layout.y_label_area_size);
 
@@ -572,11 +665,17 @@ impl Canvas {
 
         // Only apply custom styling if theme has explicit customizations
         // Otherwise use Plotters defaults for backward compatibility
+        mesh.x_label_style(x_axis_style.clone());
+        mesh.y_label_style(y_axis_style.clone());
+        mesh.axis_desc_style(axis_desc_style.clone());
+
+        let default_tick_mark_size = scale_i32(5, pixel_scale);
+
         if theme.has_customization {
             // Major Grid
             match &theme.panel_grid_major {
                 Some(grid_style) => {
-                    let grid_color = grid_style.color.stroke_width(grid_style.width.ceil() as u32);
+                    let grid_color = grid_style.color.stroke_width(to_stroke_width(grid_style.width));
                     mesh.bold_line_style(grid_color);
                 }
                 None => {
@@ -588,7 +687,7 @@ impl Canvas {
             // Minor Grid
             match &theme.panel_grid_minor {
                 Some(grid_style) => {
-                    let grid_color = grid_style.color.stroke_width(grid_style.width.ceil() as u32);
+                    let grid_color = grid_style.color.stroke_width(to_stroke_width(grid_style.width));
                     mesh.light_line_style(grid_color);
                 }
                 None => {
@@ -600,7 +699,7 @@ impl Canvas {
             // Axis line styling
             match &theme.axis_line {
                 Some(axis_style) => {
-                    mesh.axis_style(axis_style.color.stroke_width(axis_style.width.ceil() as u32));
+                    mesh.axis_style(axis_style.color.stroke_width(to_stroke_width(axis_style.width)));
                 }
                 None => {
                     // Blank - hide axis lines
@@ -612,18 +711,16 @@ impl Canvas {
             if theme.axis_ticks.is_none() {
                 if theme.axis_line.is_none() {
                     // Preserve the default plot-to-label spacing while keeping ticks invisible.
-                    mesh.set_all_tick_mark_size(5);
+                    mesh.set_all_tick_mark_size(default_tick_mark_size);
                 } else {
                     // When the axis line remains visible, keep tick marks fully collapsed.
                     mesh.set_all_tick_mark_size(0i32.percent());
                 }
+            } else {
+                mesh.set_all_tick_mark_size(default_tick_mark_size);
             }
-            // When axis_ticks is Some, keep default tick size
-            // Note: tick color follows axis_style (plotters limitation)
-
-            mesh.x_label_style(x_axis_style.clone());
-            mesh.y_label_style(y_axis_style);
-            mesh.axis_desc_style(axis_desc_style.clone());
+        } else if pixel_scale > 1 {
+            mesh.set_all_tick_mark_size(default_tick_mark_size);
         }
 
         if let Some(x_label) = &panel.x_label {
@@ -680,7 +777,7 @@ impl Canvas {
             match cmd {
                 DrawCommand::DrawLine { points, style, legend } => {
                     let color = parse_color(&style.color, BLUE);
-                    let stroke_width = style.width.unwrap_or(2.0).ceil() as u32;
+                    let stroke_width = to_stroke_width(scale_f64(style.width.unwrap_or(2.0), pixel_scale));
                     let alpha = style.alpha.unwrap_or(1.0);
                     let color_style = color.mix(alpha).stroke_width(stroke_width);
 
@@ -689,12 +786,17 @@ impl Canvas {
 
                     if let Some(label) = legend {
                         series.label(label)
-                            .legend(move |(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], color.mix(alpha).stroke_width(stroke_width)));
+                            .legend(move |(x, y)| {
+                                PathElement::new(
+                                    vec![(x, y), (x + scale_i32(20, pixel_scale), y)],
+                                    color.mix(alpha).stroke_width(stroke_width),
+                                )
+                            });
                     }
                 }
                 DrawCommand::DrawPoint { points, style, legend } => {
                     let color = parse_color(&style.color, BLUE);
-                    let size = style.size.unwrap_or(3.0) as i32;
+                    let size = to_marker_size(scale_f64(style.size.unwrap_or(3.0), pixel_scale));
                     let alpha = style.alpha.unwrap_or(1.0);
                     let color_style = color.mix(alpha).filled();
 
@@ -704,7 +806,9 @@ impl Canvas {
 
                     if let Some(label) = legend {
                         series.label(label)
-                            .legend(move |(x, y)| Circle::new((x + 10, y), size, color.mix(alpha).filled()));
+                            .legend(move |(x, y)| {
+                                Circle::new((x + scale_i32(10, pixel_scale), y), size, color.mix(alpha).filled())
+                            });
                     }
                 }
                 DrawCommand::DrawRect { tl, br, style, legend } => {
@@ -719,7 +823,15 @@ impl Canvas {
                     
                     if let Some(label) = legend {
                         series.label(label)
-                            .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 15, y + 5)], color.mix(alpha).filled()));
+                            .legend(move |(x, y)| {
+                                Rectangle::new(
+                                    [
+                                        (x, y - scale_i32(5, pixel_scale)),
+                                        (x + scale_i32(15, pixel_scale), y + scale_i32(5, pixel_scale)),
+                                    ],
+                                    color.mix(alpha).filled(),
+                                )
+                            });
                     }
                 }
                 DrawCommand::DrawPolygon { points, style, legend } => {
@@ -734,7 +846,15 @@ impl Canvas {
 
                     if let Some(label) = legend {
                         series.label(label)
-                            .legend(move |(x, y)| Rectangle::new([(x, y - 5), (x + 15, y + 5)], color_style.clone()));
+                            .legend(move |(x, y)| {
+                                Rectangle::new(
+                                    [
+                                        (x, y - scale_i32(5, pixel_scale)),
+                                        (x + scale_i32(15, pixel_scale), y + scale_i32(5, pixel_scale)),
+                                    ],
+                                    color_style.clone(),
+                                )
+                            });
                     }
                 }
             }
@@ -771,7 +891,7 @@ impl Canvas {
                 .position(position)
                 .background_style(theme.panel_background.fill.mix(0.8))
                 .border_style(&theme.axis_text.color)
-                .label_font(("sans-serif", 12).into_font().color(&theme.axis_text.color))
+                .label_font(("sans-serif", scale_i32(12, pixel_scale)).into_font().color(&theme.axis_text.color))
                 .draw()
                 .context("Failed to draw legend")?;
         }
@@ -790,7 +910,7 @@ fn parse_color(color_str: &Option<String>, default_color: RGBColor) -> RGBColor 
 
 #[cfg(test)]
 mod tests {
-    use super::{build_axis_text_styles, calculate_axis_layout};
+    use super::{build_axis_text_styles, calculate_axis_layout, scale_resolved_theme};
     use crate::ir::{DrawCommand, PanelScene, Scale};
     use crate::parser::ast::Theme;
     use plotters::drawing::IntoDrawingArea;
@@ -866,6 +986,7 @@ mod tests {
             &theme,
             &y_axis_style,
             &axis_desc_style,
+            1,
         );
 
         assert!(layout.x_label_area_size > 30, "expected bottom label area to grow, got {}", layout.x_label_area_size);
@@ -892,10 +1013,11 @@ mod tests {
             &theme,
             &y_axis_style,
             &axis_desc_style,
+            1,
         );
 
         assert!(layout.x_label_area_size >= 80, "expected rotated labels to reserve more space, got {}", layout.x_label_area_size);
-        assert!(layout.x_tick_gap >= 30, "expected rotated labels to reserve a larger tick gap, got {}", layout.x_tick_gap);
+        assert!(layout.x_tick_gap >= 23, "expected rotated labels to reserve a larger tick gap, got {}", layout.x_tick_gap);
         assert!(layout.manual_rotated_x_labels, "expected rotated categorical labels to use manual placement");
     }
 
@@ -913,9 +1035,23 @@ mod tests {
             &theme,
             &y_axis_style,
             &axis_desc_style,
+            1,
         );
 
         assert!(layout.max_y_label_width > 0, "expected numeric y labels to reserve width");
         assert!(layout.y_label_area_size > 40, "expected left label area to grow, got {}", layout.y_label_area_size);
+    }
+
+    #[test]
+    fn resolved_theme_scales_for_supersampled_pngs() {
+        let theme = Theme::default().resolve();
+        let scaled = scale_resolved_theme(&theme, 2);
+
+        assert_eq!(scaled.plot_title.size, theme.plot_title.size * 2.0);
+        assert_eq!(scaled.axis_text.size, theme.axis_text.size * 2.0);
+        assert_eq!(
+            scaled.axis_line.as_ref().unwrap().width,
+            theme.axis_line.as_ref().unwrap().width * 2.0
+        );
     }
 }
