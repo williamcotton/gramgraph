@@ -171,6 +171,10 @@ where
     })
 }
 
+fn blank_tick_label(_value: &f64) -> String {
+    String::new()
+}
+
 fn estimate_numeric_tick_label_width<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     range: (f64, f64),
@@ -206,7 +210,9 @@ fn effective_tick_label_gap(theme: &ResolvedTheme) -> u32 {
 struct AxisLayout {
     x_label_area_size: u32,
     y_label_area_size: u32,
-    tick_gap: u32,
+    x_tick_gap: u32,
+    y_tick_gap: u32,
+    manual_rotated_x_labels: bool,
     max_y_label_width: u32,
     y_desc_width: u32,
     y_label_to_desc_gap: u32,
@@ -252,27 +258,31 @@ fn calculate_axis_layout<DB: DrawingBackend>(
         .unwrap_or(0);
 
     let normalized_angle = ((theme.axis_text.angle % 360.0) + 360.0) % 360.0;
-    let x_label_vertical_extent = if (45.0..135.0).contains(&normalized_angle) || (225.0..315.0).contains(&normalized_angle) {
+    let rotated_x_labels = (45.0..135.0).contains(&normalized_angle) || (225.0..315.0).contains(&normalized_angle);
+    let manual_rotated_x_labels = rotated_x_labels && panel.x_scale.is_categorical;
+    let x_label_vertical_extent = if rotated_x_labels {
         max_x_label_width
     } else {
         max_x_label_height
     };
 
-    let tick_gap: u32 = effective_tick_label_gap(theme);
+    let base_tick_gap: u32 = effective_tick_label_gap(theme);
+    let x_tick_gap: u32 = if rotated_x_labels { base_tick_gap.max(12) } else { base_tick_gap };
+    let y_tick_gap: u32 = base_tick_gap;
     let x_label_to_desc_gap: u32 = 6;
     let y_label_to_desc_gap: u32 = 16;
     let outer_padding: u32 = 4;
 
     let x_tick_block = if panel.x_scale.is_categorical {
-        tick_gap.saturating_add(x_label_vertical_extent)
+        x_tick_gap.saturating_add(x_label_vertical_extent)
     } else {
-        tick_gap.saturating_add(font_size.ceil() as u32)
+        x_tick_gap.saturating_add(font_size.ceil() as u32)
     };
 
     let y_tick_block = if panel.y_scale.is_categorical {
-        tick_gap.saturating_add(max_y_label_width)
+        y_tick_gap.saturating_add(max_y_label_width)
     } else {
-        tick_gap.saturating_add(font_size.ceil() as u32)
+        y_tick_gap.saturating_add(font_size.ceil() as u32)
     };
 
     let x_desc_block = if panel.x_label.is_some() {
@@ -299,12 +309,52 @@ fn calculate_axis_layout<DB: DrawingBackend>(
     AxisLayout {
         x_label_area_size,
         y_label_area_size,
-        tick_gap,
+        x_tick_gap,
+        y_tick_gap,
+        manual_rotated_x_labels,
         max_y_label_width,
         y_desc_width,
         y_label_to_desc_gap,
         outer_padding,
     }
+}
+
+fn draw_manual_rotated_x_tick_labels<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    chart: &ChartContext<'_, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    panel: &PanelScene,
+    axis_layout: AxisLayout,
+    x_axis_style: &TextStyle,
+    angle: f64,
+) -> Result<()>
+where
+    DB::ErrorType: 'static,
+{
+    if !axis_layout.manual_rotated_x_labels {
+        return Ok(());
+    }
+
+    let (panel_x, panel_y) = area.get_pixel_range();
+    let (_, plot_y) = chart.plotting_area().get_pixel_range();
+    let plot_bottom = plot_y.end - panel_y.start;
+    let anchor = if (45.0..135.0).contains(&angle) {
+        Pos::new(HPos::Left, VPos::Center)
+    } else {
+        Pos::new(HPos::Right, VPos::Center)
+    };
+    let label_style = x_axis_style.clone().pos(anchor);
+
+    for (idx, label) in panel.x_scale.categories.iter().enumerate() {
+        let (abs_x, _) = chart
+            .plotting_area()
+            .map_coordinate(&(idx as f64, panel.y_scale.range.0));
+        let rel_x = abs_x - panel_x.start;
+        let rel_y = plot_bottom + axis_layout.x_tick_gap as i32;
+        area.draw_text(label, &label_style, (rel_x, rel_y))
+            .context("Failed to draw rotated x-axis label")?;
+    }
+
+    Ok(())
 }
 
 fn draw_manual_y_axis_desc<DB: DrawingBackend>(
@@ -328,7 +378,7 @@ where
     let plot_mid_y = (plot_y.start + plot_y.end) / 2 - panel_y.start;
 
     let title_center_x = plot_left
-        - axis_layout.tick_gap as i32
+        - axis_layout.y_tick_gap as i32
         - axis_layout.max_y_label_width as i32
         - axis_layout.y_label_to_desc_gap as i32
         - (axis_layout.y_desc_width as i32 / 2)
@@ -571,7 +621,7 @@ impl Canvas {
             // When axis_ticks is Some, keep default tick size
             // Note: tick color follows axis_style (plotters limitation)
 
-            mesh.x_label_style(x_axis_style);
+            mesh.x_label_style(x_axis_style.clone());
             mesh.y_label_style(y_axis_style);
             mesh.axis_desc_style(axis_desc_style.clone());
         }
@@ -596,8 +646,10 @@ impl Canvas {
             }
         };
 
-        if panel.x_scale.is_categorical {
+        if panel.x_scale.is_categorical && !axis_layout.manual_rotated_x_labels {
             mesh.x_label_formatter(&formatter_x);
+        } else if axis_layout.manual_rotated_x_labels {
+            mesh.x_label_formatter(&blank_tick_label);
         }
 
         // Custom Y Labels if categorical (e.g. coord_flip)
@@ -620,6 +672,7 @@ impl Canvas {
         
         mesh.draw().context("Failed to draw mesh")?;
 
+        draw_manual_rotated_x_tick_labels(area, &chart, panel, axis_layout, &x_axis_style, theme.axis_text.angle)?;
         draw_manual_y_axis_desc(area, &chart, panel, axis_layout, &axis_desc_style)?;
 
         // Draw Commands
@@ -842,6 +895,8 @@ mod tests {
         );
 
         assert!(layout.x_label_area_size >= 80, "expected rotated labels to reserve more space, got {}", layout.x_label_area_size);
+        assert!(layout.x_tick_gap >= 30, "expected rotated labels to reserve a larger tick gap, got {}", layout.x_tick_gap);
+        assert!(layout.manual_rotated_x_labels, "expected rotated categorical labels to use manual placement");
     }
 
     #[test]
