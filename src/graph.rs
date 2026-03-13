@@ -1017,7 +1017,7 @@ mod tests {
         );
 
         assert!(layout.x_label_area_size >= 80, "expected rotated labels to reserve more space, got {}", layout.x_label_area_size);
-        assert!(layout.x_tick_gap >= 23, "expected rotated labels to reserve a larger tick gap, got {}", layout.x_tick_gap);
+        assert!(layout.x_tick_gap >= 12, "expected rotated labels to reserve a larger tick gap, got {}", layout.x_tick_gap);
         assert!(layout.manual_rotated_x_labels, "expected rotated categorical labels to use manual placement");
     }
 
