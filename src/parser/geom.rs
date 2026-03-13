@@ -1,6 +1,6 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
-use super::ast::{AestheticValue, BarLayer, BarPosition, BoxplotLayer, Layer, LineLayer, PointLayer, RibbonLayer, ViolinLayer};
+use super::ast::{AestheticValue, BarLayer, BarPosition, BoxplotLayer, DensityLayer, Layer, LineLayer, PointLayer, RibbonLayer, ViolinLayer};
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
     branch::alt,
@@ -449,9 +449,56 @@ pub fn parse_violin(input: &str) -> IResult<&str, Layer> {
     Ok((input, Layer::Violin(layer)))
 }
 
+/// Parse a density geometry
+/// Format: density() or density(color: "blue", alpha: 0.3, bw: 1.5)
+pub fn parse_density(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("density"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            // x: can be column
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+
+            // color: can be "literal", column
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
+
+            // alpha: can be number, column
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
+
+            // bw: bandwidth (number only)
+            map(preceded(ws(tag("bw:")), ws(number_literal)), |b| ("bw", ArgValue::NumericFixed(b))),
+        ))
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = DensityLayer::default();
+
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            ("bw", ArgValue::NumericFixed(b)) => layer.bw = Some(b),
+            _ => {}
+        }
+    }
+
+    // Set stat with bandwidth for transform phase
+    layer.stat = crate::parser::ast::Stat::Density { bw: layer.bw };
+
+    Ok((input, Layer::Density(layer)))
+}
+
 /// Parse any geometry layer
 pub fn parse_geom(input: &str) -> IResult<&str, Layer> {
-    alt((parse_line, parse_point, parse_bar, parse_ribbon, parse_histogram, parse_smooth, parse_boxplot, parse_violin))(input)
+    alt((parse_line, parse_point, parse_bar, parse_ribbon, parse_histogram, parse_smooth, parse_boxplot, parse_violin, parse_density))(input)
 }
 
 #[cfg(test)]
@@ -646,5 +693,47 @@ mod tests {
             }
             _ => panic!("Expected Line layer"),
         }
+    }
+
+    #[test]
+    fn test_parse_density_empty() {
+        let result = parse_density("density()");
+        assert!(result.is_ok());
+        let (_, layer) = result.unwrap();
+        match layer {
+            Layer::Density(d) => {
+                assert_eq!(d.color, None);
+                assert_eq!(d.alpha, None);
+                assert_eq!(d.bw, None);
+                assert!(matches!(d.stat, crate::parser::ast::Stat::Density { bw: None }));
+            }
+            _ => panic!("Expected Density layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_density_with_params() {
+        let result = parse_density(r#"density(color: "blue", alpha: 0.5, bw: 1.5)"#);
+        assert!(result.is_ok());
+        let (_, layer) = result.unwrap();
+        match layer {
+            Layer::Density(d) => {
+                assert_eq!(d.color, Some(AestheticValue::Fixed("blue".to_string())));
+                assert_eq!(d.alpha, Some(AestheticValue::Fixed(0.5)));
+                assert_eq!(d.bw, Some(1.5));
+                assert!(matches!(d.stat, crate::parser::ast::Stat::Density { bw: Some(b) } if b == 1.5));
+            }
+            _ => panic!("Expected Density layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_density_in_pipeline() {
+        use crate::parser::pipeline::parse_plot_spec;
+        let result = parse_plot_spec(r#"aes(x: value) | density()"#);
+        assert!(result.is_ok());
+        let (_, spec) = result.unwrap();
+        assert_eq!(spec.layers.len(), 1);
+        assert!(matches!(spec.layers[0], Layer::Density(_)));
     }
 }

@@ -64,6 +64,7 @@ fn resolve_layer_aesthetics(
         Layer::Ribbon(r) => extract_mapped_string(&r.color),
         Layer::Boxplot(b) => extract_mapped_string(&b.color),
         Layer::Violin(v) => extract_mapped_string(&v.color),
+        Layer::Density(d) => extract_mapped_string(&d.color),
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.color.clone()));
 
@@ -75,13 +76,14 @@ fn resolve_layer_aesthetics(
         Layer::Ribbon(_) => None,
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.width),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.width),
+        Layer::Density(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.size.clone()));
 
     // Resolve shape mapping (point only)
     let shape = match layer {
         Layer::Point(p) => extract_mapped_string(&p.shape),
-        _ => None,
+        Layer::Line(_) | Layer::Bar(_) | Layer::Ribbon(_) | Layer::Boxplot(_) | Layer::Violin(_) | Layer::Density(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.shape.clone()));
 
@@ -93,6 +95,7 @@ fn resolve_layer_aesthetics(
         Layer::Ribbon(r) => extract_mapped_string_from_f64(&r.alpha),
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.alpha),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.alpha),
+        Layer::Density(d) => extract_mapped_string_from_f64(&d.alpha),
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.alpha.clone()));
 
@@ -130,6 +133,7 @@ fn resolve_positional(layer: &Layer, global_aes: &Option<Aesthetics>) -> Result<
         Layer::Ribbon(r) => (r.x.as_ref(), None), // Ribbon uses ymin/ymax primarily
         Layer::Boxplot(b) => (b.x.as_ref(), b.y.as_ref()),
         Layer::Violin(v) => (v.x.as_ref(), v.y.as_ref()),
+        Layer::Density(d) => (d.x.as_ref(), None), // Density only needs x
     };
 
     // Get x column
@@ -159,6 +163,9 @@ fn resolve_positional(layer: &Layer, global_aes: &Option<Aesthetics>) -> Result<
             },
             Layer::Ribbon(_) => {
                 // Allowed (uses ymin/ymax)
+            },
+            Layer::Density(_) => {
+                // Allowed (density computes y from x via KDE)
             },
             _ => {
                  anyhow::bail!("No y aesthetic specified (use aes(x: ..., y: ...) or layer-level y: ...)");

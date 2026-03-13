@@ -63,6 +63,14 @@ cat examples/demographics.csv | cargo run -- 'aes(x: gender, y: height, color: g
 echo "Generating violin.png..."
 cat examples/demographics.csv | cargo run -- 'aes(x: gender, y: height, color: gender) | violin(draw_quantiles: [0.25, 0.5, 0.75]) | theme_minimal()' > examples/violin.png
 
+# Density Plot
+echo "Generating density.png..."
+cat examples/distribution.csv | cargo run -- 'aes(x: value) | density() | labs(title: "Density Estimate", x: "Value", y: "Density") | theme_minimal()' > examples/density.png
+
+# Density Plot with Color Grouping
+echo "Generating density_grouped.png..."
+cat examples/demographics.csv | cargo run -- 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height Distribution by Gender", x: "Height (cm)", y: "Density") | theme_minimal()' > examples/density_grouped.png
+
 # --- Theme Examples ---
 
 # Custom Theme with Element Functions

@@ -1,5 +1,5 @@
 use crate::parser::ast::Layer;
-use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, BoxplotStyle, ViolinStyle};
+use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, BoxplotStyle, ViolinStyle, DensityStyle};
 
 // =============================================================================
 // Phase 1: Resolution
@@ -120,6 +120,7 @@ pub enum RenderStyle {
     Ribbon(RibbonStyle),
     Boxplot(BoxplotStyle),
     Violin(ViolinStyle),
+    Density(DensityStyle),
 }
 
 // =============================================================================

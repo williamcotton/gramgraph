@@ -116,6 +116,22 @@ cat examples/demographics.csv | gramgraph 'aes(x: gender, y: height, color: gend
 
 ![Violin Plot](examples/violin.png)
 
+### Density Plot
+
+```bash
+cat examples/distribution.csv | gramgraph 'aes(x: value) | density() | labs(title: "Density Estimate", x: "Value", y: "Density") | theme_minimal()' > examples/density.png
+```
+
+![Density Plot](examples/density.png)
+
+### Density Plot with Color Grouping
+
+```bash
+cat examples/demographics.csv | gramgraph 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height Distribution by Gender", x: "Height (cm)", y: "Density") | theme_minimal()' > examples/density_grouped.png
+```
+
+![Density Grouped](examples/density_grouped.png)
+
 ### Reverse Scale
 
 ```bash

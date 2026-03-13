@@ -17,13 +17,13 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 ### ✅ Implemented
 
-- **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()` with full styling options
-- **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression), `boxplot()`, `violin()` (KDE)
+- **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()`, `density()` with full styling options
+- **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
 - **Data-Driven Aesthetics**: Automatic grouping by color, size, shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
 - **Layer Composition**: Multiple geometries on shared coordinate space
 - **Bar/Boxplot Positioning**: Smart dodging (occupancy-based) for categorical axes
-- **Statistical Transformations**: `bin`, `count`, `smooth`, `boxplot` (5-number summary + outliers)
+- **Statistical Transformations**: `bin`, `count`, `smooth`, `boxplot` (5-number summary + outliers), `density` (Gaussian KDE)
 - **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`
 - **Coordinates**: `coord_flip()` for horizontal charts
 - **Visual Customization**: `labs()` for titles/labels, `theme_minimal()` for presets
@@ -106,6 +106,16 @@ cat demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | box
 cat demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | violin(draw_quantiles: [0.25, 0.5, 0.75])'
 ```
 
+**Density Plot (KDE):**
+```bash
+cat data.csv | gramgraph 'aes(x: value) | density() | labs(title: "Distribution") | theme_minimal()'
+```
+
+**Grouped Density Plot:**
+```bash
+cat demographics.csv | gramgraph 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height by Gender")'
+```
+
 **Ribbon Chart (Area with range):**
 ```bash
 cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribbon(alpha: 0.2) | line()'
@@ -140,6 +150,7 @@ Defines global aesthetic mappings.
 - `violin(...)`: Violin plot using Kernel Density Estimation (KDE). Supports `draw_quantiles: [0.25, 0.5, 0.75]`.
 - `ribbon(...)`: Filled area between `ymin` and `ymax`.
 - `histogram(...)`: Binning bar chart. Supports `bins: n`.
+- `density(...)`: Density curve using Gaussian KDE. Supports `alpha: n`, `color: "..."`, `bw: n` (bandwidth).
 - `smooth(...)`: Smoothing line (Linear Regression).
 
 #### `labs(...)`

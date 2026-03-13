@@ -4,7 +4,7 @@ use crate::data::PlotData;
 use crate::ir::{RenderData, PanelData, LayerData, GroupData, FacetLayout, RenderStyle};
 use crate::ir::{ResolvedSpec, ResolvedLayer, ResolvedAesthetics, ResolvedFacet};
 use crate::parser::ast::{Layer, BarPosition, Stat};
-use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, ViolinStyle};
+use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, ViolinStyle, DensityStyle};
 use crate::palette::{ColorPalette, SizePalette, ShapePalette};
 
 /// Main entry point: Transform resolved spec and CSV data into renderable data
@@ -429,6 +429,10 @@ fn build_style(
             alpha: pick_alpha(&v.alpha),
             draw_quantiles: v.draw_quantiles.clone(),
         }),
+        Layer::Density(d) => RenderStyle::Density(DensityStyle {
+            color: pick_color(&d.color),
+            alpha: pick_alpha(&d.alpha),
+        }),
     }
 }
 
@@ -699,6 +703,88 @@ fn compute_violin_stat(
     Ok(new_groups)
 }
 
+/// Compute density statistics using KDE (reuses KDE infrastructure from violin)
+fn compute_density_stat(
+    groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
+    bw_override: Option<f64>,
+) -> Result<HashMap<String, StatData>> {
+    // First collect all x values across all groups to determine shared range
+    let mut all_x_values: Vec<f64> = Vec::new();
+    for (x_strs, _, _, _) in groups.values() {
+        for s in x_strs {
+            let v = s.parse::<f64>().map_err(|_| anyhow!("Stat 'density' requires numeric x data"))?;
+            all_x_values.push(v);
+        }
+    }
+
+    if all_x_values.is_empty() {
+        return Ok(groups.into_iter().map(|(k, v)| (k, StatData::from_tuple(v))).collect());
+    }
+
+    // Use shared range for all groups so density curves align
+    let global_min = all_x_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let global_max = all_x_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+
+    let mut new_groups = HashMap::new();
+
+    for (key, (x_strs, _, _, _)) in groups {
+        let mut x_floats: Vec<f64> = Vec::new();
+        for s in &x_strs {
+            x_floats.push(s.parse::<f64>().unwrap());
+        }
+
+        if x_floats.is_empty() { continue; }
+
+        // Compute bandwidth
+        let bandwidth = bw_override.unwrap_or_else(|| silverman_bandwidth(&x_floats));
+
+        // Compute KDE on a shared grid
+        let grid_points: usize = 256;
+        let n = x_floats.len() as f64;
+
+        let extend = 3.0 * bandwidth;
+        let x_start = global_min - extend;
+        let x_end = global_max + extend;
+        let range = x_end - x_start;
+
+        if range <= 0.0 {
+            new_groups.insert(key, StatData::from_tuple((
+                vec![global_min.to_string()],
+                vec![1.0],
+                vec![0.0],
+                vec![1.0],
+            )));
+            continue;
+        }
+
+        let step = range / (grid_points - 1) as f64;
+        let mut grid_x = Vec::with_capacity(grid_points);
+        let mut density = Vec::with_capacity(grid_points);
+
+        for i in 0..grid_points {
+            let x = x_start + i as f64 * step;
+            grid_x.push(x);
+
+            let mut d = 0.0;
+            for &xi in &x_floats {
+                let u = (x - xi) / bandwidth;
+                d += gaussian_kernel(u);
+            }
+            d /= n * bandwidth;
+            density.push(d);
+        }
+
+        // Convert to string x and build stat data
+        let new_x: Vec<String> = grid_x.iter().map(|x| format!("{}", x)).collect();
+        let new_ymin: Vec<f64> = vec![0.0; grid_points];
+        let new_ymax: Vec<f64> = density.clone();
+
+        new_groups.insert(key, StatData::from_tuple((new_x, density, new_ymin, new_ymax)));
+    }
+
+    Ok(new_groups)
+}
+
 fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     let n = sorted_data.len();
     if n == 0 { return 0.0; }
@@ -727,6 +813,7 @@ fn apply_statistics(
         Stat::Smooth { method } => compute_smooth_stat(groups, method),
         Stat::Boxplot => compute_boxplot_stat(groups),
         Stat::Violin { draw_quantiles } => compute_violin_stat(groups, draw_quantiles),
+        Stat::Density { bw } => compute_density_stat(groups, *bw),
     }
 }
 

@@ -385,6 +385,53 @@ pub fn compile_geometry(
                             },
                         });
                     }
+                    RenderStyle::Density(style) => {
+                        // Density: filled area + outline line
+                        // Build polygon from (x, 0) to (x, density)
+                        let mut polygon_points = Vec::with_capacity(group.x.len() * 2);
+
+                        // Forward pass: top of density curve
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let y = group.y[i];
+                            polygon_points.push(if is_flipped { (y, x) } else { (x, y) });
+                        }
+
+                        // Backward pass: baseline (y = 0)
+                        for i in (0..group.x.len()).rev() {
+                            let x = group.x[i];
+                            let y = group.y_start[i]; // 0.0
+                            polygon_points.push(if is_flipped { (y, x) } else { (x, y) });
+                        }
+
+                        // Draw filled area
+                        commands.push(DrawCommand::DrawPolygon {
+                            points: polygon_points,
+                            style: RibbonStyle {
+                                color: style.color.clone(),
+                                alpha: style.alpha.or(Some(0.3)),
+                            },
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                Some(group.key.clone())
+                            } else {
+                                None
+                            },
+                        });
+
+                        // Draw outline
+                        let line_points: Vec<(f64, f64)> = group.x.iter().zip(group.y.iter())
+                            .map(|(&x, &y)| if is_flipped { (y, x) } else { (x, y) })
+                            .collect();
+                        commands.push(DrawCommand::DrawLine {
+                            points: line_points,
+                            style: LineStyle {
+                                color: style.color.clone(),
+                                width: Some(2.0),
+                                alpha: Some(1.0),
+                            },
+                            legend: None,
+                        });
+                    }
                     RenderStyle::Violin(style) => {
                         let width_ratio = style.width.unwrap_or(0.8);
                         let is_vertical = !is_flipped;

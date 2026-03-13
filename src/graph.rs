@@ -58,6 +58,13 @@ pub struct ViolinStyle {
     pub draw_quantiles: Vec<f64>,
 }
 
+/// Style configuration for density layers
+#[derive(Debug, Clone, Default)]
+pub struct DensityStyle {
+    pub color: Option<String>,
+    pub alpha: Option<f64>,
+}
+
 /// Convert angle to plotters FontTransform (90-degree increments only)
 fn angle_to_font_transform(angle: f64) -> FontTransform {
     let normalized = ((angle % 360.0) + 360.0) % 360.0;

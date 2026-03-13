@@ -201,6 +201,7 @@ pub enum Stat {
     Smooth { method: String },
     Boxplot,
     Violin { draw_quantiles: Vec<f64> },
+    Density { bw: Option<f64> },
 }
 
 impl Default for Stat {
@@ -218,6 +219,7 @@ pub enum Layer {
     Ribbon(RibbonLayer),
     Boxplot(BoxplotLayer),
     Violin(ViolinLayer),
+    Density(DensityLayer),
 }
 
 impl Layer {
@@ -234,6 +236,7 @@ impl Layer {
             Layer::Ribbon(r) => &r.stat,
             Layer::Boxplot(b) => &b.stat,
             Layer::Violin(v) => &v.stat,
+            Layer::Density(d) => &d.stat,
         }
     }
 }
@@ -334,6 +337,19 @@ pub struct ViolinLayer {
 
     // Violin-specific options
     pub draw_quantiles: Vec<f64>,  // Quantile lines to draw inside violin (e.g., [0.25, 0.5, 0.75])
+}
+
+/// Density geometry layer (KDE-based density curve)
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DensityLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    pub bw: Option<f64>,  // Bandwidth (None = auto via Silverman's rule)
 }
 
 /// Bar positioning modes (how bars are arranged)
