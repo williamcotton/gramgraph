@@ -351,6 +351,6 @@ Product A
 <text x="728" y="94" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#2E86AB">
 Product B
 </text>
-<rect x="683" y="78" width="15" height="10" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="683" y="93" width="15" height="10" opacity="1" fill="#FFA500" stroke="none"/>
+<rect x="698" y="78" width="15" height="10" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="698" y="93" width="15" height="10" opacity="1" fill="#FFA500" stroke="none"/>
 </svg>

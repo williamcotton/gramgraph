@@ -274,8 +274,8 @@ Product A
 <text x="328" y="67" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 Product B
 </text>
-<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="278,56 298,56 "/>
-<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="278,71 298,71 "/>
+<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="298,56 318,56 "/>
+<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="298,71 318,71 "/>
 <text x="600" y="20" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="12.096774193548388" opacity="1" fill="#000000">
 region = North
 </text>
@@ -550,8 +550,8 @@ Product A
 <text x="728" y="67" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 Product B
 </text>
-<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="678,56 698,56 "/>
-<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="678,71 698,71 "/>
+<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="698,56 718,56 "/>
+<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="698,71 718,71 "/>
 <text x="200" y="320" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="12.096774193548388" opacity="1" fill="#000000">
 region = South
 </text>
@@ -826,8 +826,8 @@ Product A
 <text x="328" y="367" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 Product B
 </text>
-<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="278,356 298,356 "/>
-<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="278,371 298,371 "/>
+<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="298,356 318,356 "/>
+<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="298,371 318,371 "/>
 <text x="600" y="320" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="12.096774193548388" opacity="1" fill="#000000">
 region = West
 </text>
@@ -1102,6 +1102,6 @@ Product A
 <text x="728" y="367" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 Product B
 </text>
-<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="678,356 698,356 "/>
-<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="678,371 698,371 "/>
+<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="698,356 718,356 "/>
+<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="698,371 718,371 "/>
 </svg>

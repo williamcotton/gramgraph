@@ -248,6 +248,6 @@ F
 <text x="762" y="94" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#A0A0A0">
 M
 </text>
-<circle cx="727" cy="83" r="5" opacity="1" fill="#0000FF" stroke="none" stroke-width="1"/>
-<circle cx="727" cy="98" r="5" opacity="1" fill="#FFA500" stroke="none" stroke-width="1"/>
+<circle cx="742" cy="83" r="5" opacity="1" fill="#0000FF" stroke="none" stroke-width="1"/>
+<circle cx="742" cy="98" r="5" opacity="1" fill="#FFA500" stroke="none" stroke-width="1"/>
 </svg>

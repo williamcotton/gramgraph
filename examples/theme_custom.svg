@@ -118,6 +118,6 @@ A
 <text x="764" y="106" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 B
 </text>
-<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="714,95 734,95 "/>
-<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="714,110 734,110 "/>
+<polyline fill="none" opacity="1" stroke="#0000FF" stroke-width="2" points="734,95 754,95 "/>
+<polyline fill="none" opacity="1" stroke="#FFA500" stroke-width="2" points="734,110 754,110 "/>
 </svg>

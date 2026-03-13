@@ -121,6 +121,6 @@ F
 <text x="762" y="94" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 M
 </text>
-<rect x="717" y="78" width="15" height="10" opacity="0.4" fill="#0000FF" stroke="none"/>
-<rect x="717" y="93" width="15" height="10" opacity="0.4" fill="#FFA500" stroke="none"/>
+<rect x="732" y="78" width="15" height="10" opacity="0.4" fill="#0000FF" stroke="none"/>
+<rect x="732" y="93" width="15" height="10" opacity="0.4" fill="#FFA500" stroke="none"/>
 </svg>
