@@ -82,7 +82,7 @@ cat data.csv | gramgraph 'aes(x: time, y: temperature) | line()' --width 1024 --
 
 **Histogram with Theme:**
 ```bash
-cat data.csv | gramgraph 'aes(x: value) | histogram(bins: 20) | labs(title: "Distribution") | theme_minimal()' --width 800 --height 600 --format png
+cat data.csv | gramgraph 'aes(x: value) | histogram(bins: 20) | labs(title: "Distribution") | theme_minimal()' --width 800 --height 600 --format svg
 ```
 
 **Horizontal Bar Chart (Coord Flip):**
@@ -351,7 +351,7 @@ This separation follows `ggplot2`'s architecture where the Grid graphics system 
 
 1. **Update `generate_examples.sh`**
    - Add example commands that demonstrate the new feature
-   - Use descriptive output filenames (e.g., `feature_name.png`)
+   - Use descriptive output filenames (e.g., `feature_name.svg`)
    - Run the script to generate the new example images
 
 2. **Update `README.md`**
@@ -370,8 +370,8 @@ This separation follows `ggplot2`'s architecture where the Grid graphics system 
 ```bash
 # 1. Implement feature in code
 # 2. Add example to generate_examples.sh
-echo "Generating new_feature.png..."
-cat examples/data.csv | cargo run -- 'aes(...) | new_feature()' > examples/new_feature.png
+echo "Generating new_feature.svg..."
+cat examples/data.csv | cargo run -- 'aes(...) | new_feature()' --format svg > examples/new_feature.svg
 
 # 3. Run the script
 bash generate_examples.sh
@@ -379,9 +379,9 @@ bash generate_examples.sh
 # 4. Add to README.md
 ### New Feature
 \`\`\`bash
-cat examples/data.csv | gramgraph 'aes(...) | new_feature()' > examples/new_feature.png
+cat examples/data.csv | gramgraph 'aes(...) | new_feature()' --format svg > examples/new_feature.svg
 \`\`\`
-![New Feature](examples/new_feature.png)
+![New Feature](examples/new_feature.svg)
 
 # 5. Update CLAUDE.md with feature documentation
 ```

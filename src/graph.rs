@@ -889,6 +889,8 @@ impl Canvas {
 
             chart.configure_series_labels()
                 .position(position)
+                .margin(scale_u32(10, pixel_scale))
+                .legend_area_size(scale_u32(30, pixel_scale))
                 .background_style(theme.panel_background.fill.mix(0.8))
                 .border_style(&theme.axis_text.color)
                 .label_font(("sans-serif", scale_i32(12, pixel_scale)).into_font().color(&theme.axis_text.color))
