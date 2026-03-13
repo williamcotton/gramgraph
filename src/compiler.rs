@@ -7,6 +7,37 @@ use crate::RenderOptions;
 use std::collections::{HashMap, HashSet};
 
 // =============================================================================
+// Heatmap Color Mapping
+// =============================================================================
+
+/// Map a normalized value (0.0-1.0) to a viridis-inspired color gradient
+/// Goes from dark purple (low) → blue → teal → green → yellow (high)
+fn value_to_heatmap_color(t: f64) -> String {
+    // Simplified viridis colormap with 5 control points
+    let colors: [(f64, f64, f64); 5] = [
+        (68.0, 1.0, 84.0),      // Dark purple (t=0.0)
+        (59.0, 82.0, 139.0),    // Blue (t=0.25)
+        (33.0, 145.0, 140.0),   // Teal (t=0.5)
+        (94.0, 201.0, 98.0),    // Green (t=0.75)
+        (253.0, 231.0, 37.0),   // Yellow (t=1.0)
+    ];
+
+    let t = t.clamp(0.0, 1.0);
+    let segment = (t * 4.0).min(3.999);
+    let idx = segment.floor() as usize;
+    let frac = segment - idx as f64;
+
+    let (r1, g1, b1) = colors[idx];
+    let (r2, g2, b2) = colors[idx + 1];
+
+    let r = (r1 + (r2 - r1) * frac).round() as u8;
+    let g = (g1 + (g2 - g1) * frac).round() as u8;
+    let b = (b1 + (b2 - b1) * frac).round() as u8;
+
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
+}
+
+// =============================================================================
 // Boxplot Geometry Helpers
 // =============================================================================
 
@@ -432,6 +463,49 @@ pub fn compile_geometry(
                             legend: None,
                         });
                     }
+                    RenderStyle::Heatmap(style) => {
+                        // Heatmap: each cell becomes a DrawRect with color mapped from fill value
+                        let cell_w = group.heatmap_cell_width;
+                        let cell_h = group.heatmap_cell_height;
+                        let val_min = style.value_min;
+                        let val_max = style.value_max;
+                        let val_range = if val_max != val_min { val_max - val_min } else { 1.0 };
+
+                        for i in 0..group.x.len() {
+                            let x_center = group.x[i];
+                            let y_center = group.heatmap_y_positions[i];
+                            let fill_val = group.heatmap_fill_values[i];
+
+                            // Normalize value to 0-1
+                            let t = ((fill_val - val_min) / val_range).clamp(0.0, 1.0);
+
+                            // Map to viridis-like color gradient
+                            let color_str = value_to_heatmap_color(t);
+
+                            let half_w = cell_w / 2.0;
+                            let half_h = cell_h / 2.0;
+
+                            let tl = (x_center - half_w, y_center + half_h);
+                            let br = (x_center + half_w, y_center - half_h);
+
+                            let (tl, br) = if is_flipped {
+                                ((tl.1, tl.0), (br.1, br.0))
+                            } else {
+                                (tl, br)
+                            };
+
+                            commands.push(DrawCommand::DrawRect {
+                                tl,
+                                br,
+                                style: BarStyle {
+                                    color: Some(color_str),
+                                    alpha: style.alpha.or(Some(1.0)),
+                                    width: None,
+                                },
+                                legend: None,
+                            });
+                        }
+                    }
                     RenderStyle::Violin(style) => {
                         let width_ratio = style.width.unwrap_or(0.8);
                         let is_vertical = !is_flipped;
@@ -653,7 +727,12 @@ mod tests {
                         violin_density: vec![],
                         violin_density_y: vec![],
                         violin_quantile_values: vec![],
+                        heatmap_y_positions: vec![],
+                        heatmap_fill_values: vec![],
+                        heatmap_cell_width: 0.0,
+                        heatmap_cell_height: 0.0,
                         x_categories: None,
+                        y_categories: None,
                         style: RenderStyle::Line(LineStyle::default()),
                     }],
                 }],
@@ -675,7 +754,7 @@ mod tests {
                     x_col: "x".to_string(),
                     y_col: Some("y".to_string()),
                     ymin_col: None, ymax_col: None,
-                    color: None, size: None, shape: None, alpha: None
+                    color: None, size: None, shape: None, alpha: None, fill: None
                 },
             }],
             facet: None,

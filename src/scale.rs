@@ -73,18 +73,30 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
         };
 
         // Y-Axis
-        let (min, max) = if let Some(s) = &spec.y_scale_spec {
-            if let Some((lmin, lmax)) = s.limits { (lmin, lmax) }
-            else { pad_range(y_mm.min, y_mm.max) }
-        } else { pad_range(y_mm.min, y_mm.max) };
+        let y_scale = if y_mm.is_categorical {
+            let n = y_mm.categories.len() as f64;
+            Scale {
+                domain: (0.0, n),
+                range: if let Some(s) = &spec.y_scale_spec {
+                    if matches!(s.scale_type, ScaleType::Reverse) { (n - 0.5, -0.5) } else { (-0.5, n - 0.5) }
+                } else { (-0.5, n - 0.5) },
+                is_categorical: true,
+                categories: y_mm.categories,
+            }
+        } else {
+            let (min, max) = if let Some(s) = &spec.y_scale_spec {
+                if let Some((lmin, lmax)) = s.limits { (lmin, lmax) }
+                else { pad_range(y_mm.min, y_mm.max) }
+            } else { pad_range(y_mm.min, y_mm.max) };
 
-        let y_scale = Scale {
-            domain: (min, max),
-            range: if let Some(s) = &spec.y_scale_spec {
-                if matches!(s.scale_type, ScaleType::Reverse) { (max, min) } else { (min, max) }
-            } else { (min, max) },
-            is_categorical: false,
-            categories: Vec::new(),
+            Scale {
+                domain: (min, max),
+                range: if let Some(s) = &spec.y_scale_spec {
+                    if matches!(s.scale_type, ScaleType::Reverse) { (max, min) } else { (min, max) }
+                } else { (min, max) },
+                is_categorical: false,
+                categories: Vec::new(),
+            }
         };
 
         final_scales.push(PanelScales {
@@ -140,15 +152,42 @@ fn calculate_min_max_x(panel: &crate::ir::PanelData) -> MinMax {
 fn calculate_min_max_y(panel: &crate::ir::PanelData) -> MinMax {
     let mut min = f64::INFINITY;
     let mut max = f64::NEG_INFINITY;
-    
+
     // Helper to include 0 for bar charts
     let mut has_bars = false;
+    let mut is_cat = false;
+    let mut categories = Vec::new();
 
     for layer in &panel.layers {
         for group in &layer.groups {
             // Check if bar layer
             if matches!(group.style, crate::ir::RenderStyle::Bar(_)) {
                 has_bars = true;
+            }
+
+            // Check for heatmap with y categories
+            if let Some(y_cats) = &group.y_categories {
+                is_cat = true;
+                if categories.is_empty() {
+                    categories = y_cats.clone();
+                }
+            }
+
+            // For heatmap, use y_positions for range
+            if matches!(group.style, crate::ir::RenderStyle::Heatmap(_)) {
+                for &val in &group.heatmap_y_positions {
+                    if val < min { min = val; }
+                    if val > max { max = val; }
+                }
+                // Include cell extent
+                let half_h = group.heatmap_cell_height / 2.0;
+                if !group.heatmap_y_positions.is_empty() {
+                    let ext_min = group.heatmap_y_positions.iter().fold(f64::INFINITY, |a, &b| a.min(b)) - half_h;
+                    let ext_max = group.heatmap_y_positions.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b)) + half_h;
+                    if ext_min < min { min = ext_min; }
+                    if ext_max > max { max = ext_max; }
+                }
+                continue;
             }
 
             // Check y (and y_start for stacked)
@@ -176,14 +215,19 @@ fn calculate_min_max_y(panel: &crate::ir::PanelData) -> MinMax {
             }
         }
     }
-    
+
     if has_bars {
         // Bar charts always include 0
         if min > 0.0 { min = 0.0; }
         if max < 0.0 { max = 0.0; }
     }
 
-    MinMax { min, max, is_categorical: false, categories: Vec::new() }
+    if is_cat {
+        min = 0.0;
+        max = (categories.len().max(1) - 1) as f64;
+    }
+
+    MinMax { min, max, is_categorical: is_cat, categories }
 }
 
 fn merge_ranges<'a, I>(iter: I) -> MinMax 
@@ -244,7 +288,12 @@ mod tests {
                         violin_density: vec![],
                         violin_density_y: vec![],
                         violin_quantile_values: vec![],
+                        heatmap_y_positions: vec![],
+                        heatmap_fill_values: vec![],
+                        heatmap_cell_width: 0.0,
+                        heatmap_cell_height: 0.0,
                         x_categories: None,
+                        y_categories: None,
                         style: RenderStyle::Line(LineStyle::default()),
                     }],
                 }],

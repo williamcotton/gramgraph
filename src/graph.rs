@@ -65,6 +65,14 @@ pub struct DensityStyle {
     pub alpha: Option<f64>,
 }
 
+/// Style configuration for heatmap layers
+#[derive(Debug, Clone, Default)]
+pub struct HeatmapStyle {
+    pub alpha: Option<f64>,
+    pub value_min: f64,
+    pub value_max: f64,
+}
+
 /// Convert angle to plotters FontTransform (90-degree increments only)
 fn angle_to_font_transform(angle: f64) -> FontTransform {
     let normalized = ((angle % 360.0) + 360.0) % 360.0;

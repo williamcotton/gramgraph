@@ -17,13 +17,13 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 ### ✅ Implemented
 
-- **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()`, `density()` with full styling options
+- **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
 - **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
 - **Data-Driven Aesthetics**: Automatic grouping by color, size, shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
 - **Layer Composition**: Multiple geometries on shared coordinate space
 - **Bar/Boxplot Positioning**: Smart dodging (occupancy-based) for categorical axes
-- **Statistical Transformations**: `bin`, `count`, `smooth`, `boxplot` (5-number summary + outliers), `density` (Gaussian KDE)
+- **Statistical Transformations**: `bin`, `count`, `smooth`, `boxplot` (5-number summary + outliers), `density` (Gaussian KDE), `heatmap` (2D binning)
 - **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`
 - **Coordinates**: `coord_flip()` for horizontal charts
 - **Visual Customization**: `labs()` for titles/labels, `theme_minimal()` for presets
@@ -40,7 +40,6 @@ This architecture enables powerful, declarative chart specifications with clean 
 ### 🚀 Coming Soon
 
 - More statistical methods (loess smoothing)
-- Additional geometries (heatmap)
 - Custom legend configuration
 - Additional preset themes (theme_dark, theme_classic)
 
@@ -116,6 +115,16 @@ cat data.csv | gramgraph 'aes(x: value) | density() | labs(title: "Distribution"
 cat demographics.csv | gramgraph 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height by Gender")'
 ```
 
+**Heatmap (Categorical):**
+```bash
+cat heatmap_data.csv | gramgraph 'aes(x: x, y: y, fill: value) | heatmap()'
+```
+
+**Heatmap (2D Binning):**
+```bash
+cat data.csv | gramgraph 'aes(x: height, y: weight) | heatmap(bins: 20)'
+```
+
 **Ribbon Chart (Area with range):**
 ```bash
 cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribbon(alpha: 0.2) | line()'
@@ -140,7 +149,7 @@ cat data.csv | gramgraph 'aes(x: time, y: value) | line(color: $color, width: $w
 #### `aes(...)`
 Defines global aesthetic mappings.
 - **Required**: `x: col`.
-- **Optional**: `y: col` (required for most geoms except histogram), `color: col`, `size: col`, `shape: col`, `alpha: col`, `ymin: col`, `ymax: col`.
+- **Optional**: `y: col` (required for most geoms except histogram), `color: col`, `size: col`, `shape: col`, `alpha: col`, `ymin: col`, `ymax: col`, `fill: col` (heatmap value).
 
 #### Geometries
 - `line(...)`: Line chart.
@@ -151,6 +160,7 @@ Defines global aesthetic mappings.
 - `ribbon(...)`: Filled area between `ymin` and `ymax`.
 - `histogram(...)`: Binning bar chart. Supports `bins: n`.
 - `density(...)`: Density curve using Gaussian KDE. Supports `alpha: n`, `color: "..."`, `bw: n` (bandwidth).
+- `heatmap(...)`: 2D tile plot with viridis color mapping. Supports `bins: n` (2D binning), `fill: col` (value column), `alpha: n`.
 - `smooth(...)`: Smoothing line (Linear Regression).
 
 #### `labs(...)`

@@ -1,5 +1,5 @@
 use crate::parser::ast::Layer;
-use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, BoxplotStyle, ViolinStyle, DensityStyle};
+use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, BoxplotStyle, ViolinStyle, DensityStyle, HeatmapStyle};
 
 // =============================================================================
 // Phase 1: Resolution
@@ -34,6 +34,8 @@ pub struct ResolvedAesthetics {
     pub size: Option<String>,
     pub shape: Option<String>,
     pub alpha: Option<String>,
+    // Fill column (for heatmap value mapping)
+    pub fill: Option<String>,
     // Fixed values (if not mapped) can be stored here or retrieved from Layer
 }
 
@@ -105,9 +107,17 @@ pub struct GroupData {
     pub violin_density_y: Vec<Vec<f64>>,        // Y coordinates for density curve per x category
     pub violin_quantile_values: Vec<Vec<f64>>,  // Computed Y values at requested quantiles per x category
 
+    // Heatmap cell data
+    pub heatmap_y_positions: Vec<f64>,   // Y position for each cell
+    pub heatmap_fill_values: Vec<f64>,   // Fill value for color mapping
+    pub heatmap_cell_width: f64,         // Cell width in data units
+    pub heatmap_cell_height: f64,        // Cell height in data units
+
     // Original category names for x-axis (if categorical)
-    pub x_categories: Option<Vec<String>>, 
-    
+    pub x_categories: Option<Vec<String>>,
+    // Original category names for y-axis (if categorical, e.g. heatmap)
+    pub y_categories: Option<Vec<String>>,
+
     // Resolved Visual Style for this group
     pub style: RenderStyle,
 }
@@ -121,6 +131,7 @@ pub enum RenderStyle {
     Boxplot(BoxplotStyle),
     Violin(ViolinStyle),
     Density(DensityStyle),
+    Heatmap(HeatmapStyle),
 }
 
 // =============================================================================

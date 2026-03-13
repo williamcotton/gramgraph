@@ -132,6 +132,14 @@ cat examples/demographics.csv | gramgraph 'aes(x: height, color: gender) | densi
 
 ![Density Grouped](examples/density_grouped.png)
 
+### Heatmap
+
+```bash
+cat examples/heatmap_data.csv | gramgraph 'aes(x: x, y: y, fill: value) | heatmap() | labs(title: "Weekly Activity Heatmap", x: "Day", y: "Time of Day") | theme_minimal()' > examples/heatmap.png
+```
+
+![Heatmap](examples/heatmap.png)
+
 ### Reverse Scale
 
 ```bash

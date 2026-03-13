@@ -4,7 +4,7 @@ use crate::data::PlotData;
 use crate::ir::{RenderData, PanelData, LayerData, GroupData, FacetLayout, RenderStyle};
 use crate::ir::{ResolvedSpec, ResolvedLayer, ResolvedAesthetics, ResolvedFacet};
 use crate::parser::ast::{Layer, BarPosition, Stat};
-use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, ViolinStyle, DensityStyle};
+use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, ViolinStyle, DensityStyle, HeatmapStyle};
 use crate::palette::{ColorPalette, SizePalette, ShapePalette};
 
 /// Main entry point: Transform resolved spec and CSV data into renderable data
@@ -127,6 +127,7 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
     let y_idx = if let Some(y) = &aes.y_col { Some(find_col_index(&data.headers, y)?) } else { None };
     let ymin_idx = if let Some(col) = &aes.ymin_col { Some(find_col_index(&data.headers, col)?) } else { None };
     let ymax_idx = if let Some(col) = &aes.ymax_col { Some(find_col_index(&data.headers, col)?) } else { None };
+    let fill_idx = if let Some(col) = &aes.fill { Some(find_col_index(&data.headers, col)?) } else { None };
 
     let group_idx = if let Some(g) = group_col {
         Some(find_col_index(&data.headers, g)?)
@@ -134,14 +135,50 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
         None
     };
 
+    let is_heatmap = matches!(layer_spec.original_layer, Layer::Heatmap(_));
+
+    // For heatmap with categorical y, pre-build a y category mapping
+    let heatmap_y_cat_map: Option<HashMap<String, f64>> = if is_heatmap && y_idx.is_some() {
+        let idx = y_idx.unwrap();
+        // Check if y values are numeric
+        let all_y_numeric = data.rows.iter().all(|row| row[idx].parse::<f64>().is_ok());
+        if !all_y_numeric {
+            // Build categorical mapping
+            let mut unique_y: Vec<String> = Vec::new();
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for row in &data.rows {
+                let val = row[idx].clone();
+                if seen.insert(val.clone()) {
+                    unique_y.push(val);
+                }
+            }
+            unique_y.sort();
+            Some(unique_y.iter().enumerate().map(|(i, s)| (s.clone(), i as f64)).collect())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     for row in &data.rows {
         let x_str = row[x_idx].clone();
-        let y_val = if let Some(idx) = y_idx { 
-            row[idx].parse::<f64>().context(format!("Failed to parse Y value '{}'", row[idx]))?
-        } else { 
+        let y_val = if let Some(idx) = y_idx {
+            if let Some(ref cat_map) = heatmap_y_cat_map {
+                // Categorical y for heatmap: use index
+                *cat_map.get(&row[idx]).unwrap_or(&0.0)
+            } else {
+                row[idx].parse::<f64>().context(format!("Failed to parse Y value '{}'", row[idx]))?
+            }
+        } else {
             0.0 // Default for histogram if not provided
         };
-        let ymin_val = if let Some(idx) = ymin_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 };
+        // For heatmap, repurpose ymin slot to carry fill values
+        let ymin_val = if is_heatmap {
+            if let Some(idx) = fill_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 }
+        } else {
+            if let Some(idx) = ymin_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 }
+        };
         let ymax_val = if let Some(idx) = ymax_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 };
         
         let group_key = if let Some(idx) = group_idx {
@@ -166,11 +203,18 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
     let is_bar = matches!(layer_spec.original_layer, Layer::Bar(_));
     let is_boxplot = matches!(layer_spec.original_layer, Layer::Boxplot(_));
     let is_violin = matches!(layer_spec.original_layer, Layer::Violin(_));
+    let is_heatmap_layer = matches!(layer_spec.original_layer, Layer::Heatmap(_));
 
     let all_x_strings: Vec<&String> = raw_groups.values().flat_map(|d| d.x.iter()).collect();
     let all_numeric = all_x_strings.iter().all(|s| s.parse::<f64>().is_ok());
 
-    let use_categorical = is_bar || is_boxplot || is_violin || !all_numeric;
+    // Heatmap with bins uses numeric x; categorical heatmap uses categorical x
+    let heatmap_has_bins = match &layer_spec.original_layer {
+        Layer::Heatmap(_) => matches!(layer_spec.original_layer.stat(), Stat::Heatmap { bins } if bins.is_some()),
+        _ => false,
+    };
+    let heatmap_numeric = is_heatmap_layer && heatmap_has_bins && all_numeric;
+    let use_categorical = is_bar || is_boxplot || is_violin || (!all_numeric && !heatmap_numeric);
 
     // 4. Normalize X Values
     // If categorical, we need a unified mapping for stacking/grouping
@@ -306,7 +350,22 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
         }
 
         // Build Style
-        let style = build_style(key.clone(), &layer_spec.original_layer, aes, &color_map, &size_map, &shape_map);
+        let style = build_style(key.clone(), &layer_spec.original_layer, aes, &color_map, &size_map, &shape_map, stat_data.heatmap.as_ref());
+
+        // Extract heatmap data
+        let (hm_y_pos, hm_fill, hm_cw, hm_ch, hm_y_cats) = if let Some(hm) = &stat_data.heatmap {
+            // If we pre-mapped categorical y, use those categories
+            let y_cats = if let Some(ref cat_map) = heatmap_y_cat_map {
+                let mut cats: Vec<(f64, String)> = cat_map.iter().map(|(s, &i)| (i, s.clone())).collect();
+                cats.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                Some(cats.into_iter().map(|(_, s)| s).collect())
+            } else {
+                hm.y_categories.clone()
+            };
+            (hm.y_positions.clone(), hm.fill_values.clone(), hm.cell_width, hm.cell_height, y_cats)
+        } else {
+            (vec![], vec![], 0.0, 0.0, None)
+        };
 
         groups.push(GroupData {
             key: key.clone(),
@@ -325,7 +384,13 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
             violin_density_y: violin_density_y_vec,
             violin_quantile_values: violin_quantile_values_vec,
 
+            heatmap_y_positions: hm_y_pos,
+            heatmap_fill_values: hm_fill,
+            heatmap_cell_width: hm_cw,
+            heatmap_cell_height: hm_ch,
+
             x_categories: if use_categorical { Some(category_order.clone()) } else { None },
+            y_categories: hm_y_cats,
             style,
         });
     }
@@ -351,6 +416,7 @@ fn build_style(
     color_map: &HashMap<String, String>,
     size_map: &HashMap<String, f64>,
     shape_map: &HashMap<String, String>,
+    heatmap_data: Option<&HeatmapData>,
 ) -> RenderStyle {
     // Helper to pick color: GroupMapped ?? Fixed ?? Default
     let pick_color = |l_color: &Option<crate::parser::ast::AestheticValue<String>>| -> Option<String> {
@@ -433,6 +499,21 @@ fn build_style(
             color: pick_color(&d.color),
             alpha: pick_alpha(&d.alpha),
         }),
+        Layer::Heatmap(h) => {
+            // Calculate value range from heatmap data
+            let (vmin, vmax) = if let Some(hm) = heatmap_data {
+                let min = hm.fill_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+                let max = hm.fill_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+                (min, max)
+            } else {
+                (0.0, 1.0)
+            };
+            RenderStyle::Heatmap(HeatmapStyle {
+                alpha: pick_alpha(&h.alpha),
+                value_min: vmin,
+                value_max: vmax,
+            })
+        }
     }
 }
 
@@ -452,6 +533,15 @@ struct ViolinData {
 }
 
 #[derive(Debug, Clone)]
+struct HeatmapData {
+    y_positions: Vec<f64>,    // Y position for each cell
+    fill_values: Vec<f64>,    // Fill value for color mapping
+    cell_width: f64,          // Cell width in data units
+    cell_height: f64,         // Cell height in data units
+    y_categories: Option<Vec<String>>, // Y-axis categories (if categorical)
+}
+
+#[derive(Debug, Clone)]
 struct StatData {
     x: Vec<String>,
     y: Vec<f64>,
@@ -459,6 +549,7 @@ struct StatData {
     ymax: Vec<f64>,
     boxplot: Option<BoxplotData>,
     violin: Option<ViolinData>,
+    heatmap: Option<HeatmapData>,
 }
 
 impl StatData {
@@ -470,6 +561,7 @@ impl StatData {
             ymax: t.3,
             boxplot: None,
             violin: None,
+            heatmap: None,
         }
     }
 }
@@ -548,6 +640,7 @@ fn compute_boxplot_stat(
                 outliers: res_outliers,
             }),
             violin: None,
+            heatmap: None,
         });
     }
 
@@ -697,6 +790,7 @@ fn compute_violin_stat(
                 density_y: density_y_vec,
                 quantile_values: quantile_values_vec,
             }),
+            heatmap: None,
         });
     }
 
@@ -802,6 +896,188 @@ fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     }
 }
 
+/// Compute heatmap statistics using 2D binning
+/// When bins is specified, performs 2D histogram binning (count in each cell)
+/// When bins is None, treats data as pre-aggregated (x, y are categories, fill values from ymin)
+fn compute_heatmap_stat(
+    groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
+    bins: Option<usize>,
+) -> Result<HashMap<String, StatData>> {
+    let mut new_groups = HashMap::new();
+
+    for (key, (x_strs, y_vals, fill_vals, _)) in groups {
+        if x_strs.is_empty() {
+            continue;
+        }
+
+        // Check if x and y are numeric
+        let x_numeric: Result<Vec<f64>, _> = x_strs.iter().map(|s| s.parse::<f64>()).collect();
+        let x_is_numeric = x_numeric.is_ok();
+
+        if x_is_numeric && bins.is_some() {
+            // 2D numeric binning mode
+            let x_floats = x_numeric.unwrap();
+            let bin_count = bins.unwrap();
+
+            let x_min = x_floats.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+            let x_max = x_floats.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+            let y_min_val = y_vals.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+            let y_max_val = y_vals.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+
+            let x_range = if x_max == x_min { 1.0 } else { x_max - x_min };
+            let y_range = if y_max_val == y_min_val { 1.0 } else { y_max_val - y_min_val };
+
+            let x_bin_width = x_range / bin_count as f64;
+            let y_bin_width = y_range / bin_count as f64;
+
+            // 2D binning
+            let mut bin_counts: HashMap<(usize, usize), f64> = HashMap::new();
+            let has_fill = fill_vals.iter().any(|v| *v != 0.0);
+
+            for i in 0..x_floats.len() {
+                let bx = ((x_floats[i] - x_min) / x_bin_width).floor() as usize;
+                let by = ((y_vals[i] - y_min_val) / y_bin_width).floor() as usize;
+                let bx = bx.min(bin_count - 1);
+                let by = by.min(bin_count - 1);
+
+                let entry = bin_counts.entry((bx, by)).or_insert(0.0);
+                if has_fill {
+                    *entry += fill_vals[i];
+                } else {
+                    *entry += 1.0; // Count mode
+                }
+            }
+
+            // Build cell data
+            let mut res_x = Vec::new();
+            let mut res_y_pos = Vec::new();
+            let mut res_fill = Vec::new();
+
+            for bx in 0..bin_count {
+                for by in 0..bin_count {
+                    let count = bin_counts.get(&(bx, by)).copied().unwrap_or(0.0);
+                    let x_center = x_min + (bx as f64 + 0.5) * x_bin_width;
+                    let y_center = y_min_val + (by as f64 + 0.5) * y_bin_width;
+
+                    res_x.push(format!("{}", x_center));
+                    res_y_pos.push(y_center);
+                    res_fill.push(count);
+                }
+            }
+
+            // Use y_pos as y for scale calculation
+            let res_y = res_y_pos.clone();
+            let res_ymin = vec![0.0; res_y.len()];
+            let res_ymax = res_y.clone();
+
+            new_groups.insert(key, StatData {
+                x: res_x,
+                y: res_y,
+                ymin: res_ymin,
+                ymax: res_ymax,
+                boxplot: None,
+                violin: None,
+                heatmap: Some(HeatmapData {
+                    y_positions: res_y_pos,
+                    fill_values: res_fill,
+                    cell_width: x_bin_width,
+                    cell_height: y_bin_width,
+                    y_categories: None,
+                }),
+            });
+        } else {
+            // Categorical mode: treat x and y as categories
+            // y_vals are parsed from the y column (numeric), fill_vals from the fill column
+            // Group by (x, y_as_string) pairs
+            let mut unique_x: Vec<String> = Vec::new();
+            let mut unique_y: Vec<String> = Vec::new();
+            let mut seen_x: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut seen_y: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+            // For categorical heatmap, y values come as f64 from y column
+            // We need to track unique y values as strings for category labels
+            let y_strings: Vec<String> = y_vals.iter().map(|v| format!("{}", v)).collect();
+
+            for x in &x_strs {
+                if seen_x.insert(x.clone()) {
+                    unique_x.push(x.clone());
+                }
+            }
+            for y_s in &y_strings {
+                if seen_y.insert(y_s.clone()) {
+                    unique_y.push(y_s.clone());
+                }
+            }
+            unique_x.sort();
+            unique_y.sort();
+
+            let x_count = unique_x.len();
+            let y_count = unique_y.len();
+
+            // Build cell lookup
+            let x_idx_map: HashMap<String, usize> = unique_x.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
+            let y_idx_map: HashMap<String, usize> = unique_y.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
+
+            // Aggregate values per cell
+            let mut cell_values: HashMap<(usize, usize), f64> = HashMap::new();
+            let mut cell_counts: HashMap<(usize, usize), usize> = HashMap::new();
+
+            for i in 0..x_strs.len() {
+                let xi = x_idx_map[&x_strs[i]];
+                let yi = y_idx_map[&y_strings[i]];
+                let val = fill_vals[i];
+                *cell_values.entry((xi, yi)).or_insert(0.0) += val;
+                *cell_counts.entry((xi, yi)).or_insert(0) += 1;
+            }
+
+            // Build output
+            let mut res_x = Vec::new();
+            let mut res_y_pos = Vec::new();
+            let mut res_fill = Vec::new();
+
+            for xi in 0..x_count {
+                for yi in 0..y_count {
+                    res_x.push(unique_x[xi].clone());
+                    res_y_pos.push(yi as f64);
+                    let val = cell_values.get(&(xi, yi)).copied().unwrap_or(0.0);
+                    let count = cell_counts.get(&(xi, yi)).copied().unwrap_or(0);
+                    // If we have fill values, use mean; otherwise count
+                    let fill_val = if fill_vals.iter().any(|v| *v != 0.0) && count > 0 {
+                        val / count as f64
+                    } else if count > 0 {
+                        count as f64
+                    } else {
+                        0.0
+                    };
+                    res_fill.push(fill_val);
+                }
+            }
+
+            let res_y = res_y_pos.clone();
+            let res_ymin = vec![0.0; res_y.len()];
+            let res_ymax = vec![(y_count as f64 - 1.0).max(0.0); res_y.len()];
+
+            new_groups.insert(key, StatData {
+                x: res_x,
+                y: res_y,
+                ymin: res_ymin,
+                ymax: res_ymax,
+                boxplot: None,
+                violin: None,
+                heatmap: Some(HeatmapData {
+                    y_positions: res_y_pos,
+                    fill_values: res_fill,
+                    cell_width: 1.0,
+                    cell_height: 1.0,
+                    y_categories: Some(unique_y),
+                }),
+            });
+        }
+    }
+
+    Ok(new_groups)
+}
+
 fn apply_statistics(
     groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
     stat: &Stat
@@ -814,6 +1090,7 @@ fn apply_statistics(
         Stat::Boxplot => compute_boxplot_stat(groups),
         Stat::Violin { draw_quantiles } => compute_violin_stat(groups, draw_quantiles),
         Stat::Density { bw } => compute_density_stat(groups, *bw),
+        Stat::Heatmap { bins } => compute_heatmap_stat(groups, *bins),
     }
 }
 
@@ -976,6 +1253,7 @@ mod tests {
                     size: None,
                     shape: None,
                     alpha: None,
+                    fill: None,
                 },
             }],
             facet: None,

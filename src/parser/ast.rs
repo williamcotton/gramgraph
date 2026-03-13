@@ -181,6 +181,8 @@ pub struct Aesthetics {
     pub ymin: Option<String>,
     /// Optional column name for ymax
     pub ymax: Option<String>,
+    /// Optional column name for fill (heatmap value)
+    pub fill: Option<String>,
 }
 
 /// Represents either a fixed literal value or a data-driven column mapping
@@ -202,6 +204,7 @@ pub enum Stat {
     Boxplot,
     Violin { draw_quantiles: Vec<f64> },
     Density { bw: Option<f64> },
+    Heatmap { bins: Option<usize> },
 }
 
 impl Default for Stat {
@@ -220,6 +223,7 @@ pub enum Layer {
     Boxplot(BoxplotLayer),
     Violin(ViolinLayer),
     Density(DensityLayer),
+    Heatmap(HeatmapLayer),
 }
 
 impl Layer {
@@ -237,6 +241,7 @@ impl Layer {
             Layer::Boxplot(b) => &b.stat,
             Layer::Violin(v) => &v.stat,
             Layer::Density(d) => &d.stat,
+            Layer::Heatmap(h) => &h.stat,
         }
     }
 }
@@ -350,6 +355,21 @@ pub struct DensityLayer {
     pub color: Option<AestheticValue<String>>,
     pub alpha: Option<AestheticValue<f64>>,
     pub bw: Option<f64>,  // Bandwidth (None = auto via Silverman's rule)
+}
+
+/// Heatmap geometry layer (2D tile plot with color-mapped values)
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct HeatmapLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub y: Option<String>,
+
+    // Visual properties
+    pub alpha: Option<AestheticValue<f64>>,
+
+    // Heatmap-specific: column for fill values (alternative to aes fill)
+    pub fill: Option<String>,
 }
 
 /// Bar positioning modes (how bars are arranged)

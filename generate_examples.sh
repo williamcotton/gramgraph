@@ -71,6 +71,10 @@ cat examples/distribution.csv | cargo run -- 'aes(x: value) | density() | labs(t
 echo "Generating density_grouped.png..."
 cat examples/demographics.csv | cargo run -- 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height Distribution by Gender", x: "Height (cm)", y: "Density") | theme_minimal()' > examples/density_grouped.png
 
+# Heatmap (Categorical)
+echo "Generating heatmap.png..."
+cat examples/heatmap_data.csv | cargo run -- 'aes(x: x, y: y, fill: value) | heatmap() | labs(title: "Weekly Activity Heatmap", x: "Day", y: "Time of Day") | theme_minimal()' > examples/heatmap.png
+
 # --- Theme Examples ---
 
 # Custom Theme with Element Functions

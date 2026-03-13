@@ -1,6 +1,6 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
-use super::ast::{AestheticValue, BarLayer, BarPosition, BoxplotLayer, DensityLayer, Layer, LineLayer, PointLayer, RibbonLayer, ViolinLayer};
+use super::ast::{AestheticValue, BarLayer, BarPosition, BoxplotLayer, DensityLayer, HeatmapLayer, Layer, LineLayer, PointLayer, RibbonLayer, ViolinLayer};
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
     branch::alt,
@@ -496,9 +496,54 @@ pub fn parse_density(input: &str) -> IResult<&str, Layer> {
     Ok((input, Layer::Density(layer)))
 }
 
+/// Parse a heatmap geometry
+/// Format: heatmap() or heatmap(bins: 20, alpha: 0.9, fill: value_col)
+pub fn parse_heatmap(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("heatmap"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            // x: can be column
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+            // y: can be column
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| ("y", ArgValue::ColumnName(y))),
+            // fill: column name for fill values
+            map(preceded(ws(tag("fill:")), ws(identifier)), |f| ("fill", ArgValue::ColumnName(f))),
+            // bins: number of bins for 2D binning
+            map(preceded(ws(tag("bins:")), ws(number_literal)), |b| ("bins", ArgValue::NumericFixed(b))),
+            // alpha: can be number
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
+        ))
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = HeatmapLayer::default();
+    let mut bins = None;
+
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("fill", ArgValue::ColumnName(f)) => layer.fill = Some(f),
+            ("bins", ArgValue::NumericFixed(b)) => bins = Some(b as usize),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    layer.stat = crate::parser::ast::Stat::Heatmap { bins };
+
+    Ok((input, Layer::Heatmap(layer)))
+}
+
 /// Parse any geometry layer
 pub fn parse_geom(input: &str) -> IResult<&str, Layer> {
-    alt((parse_line, parse_point, parse_bar, parse_ribbon, parse_histogram, parse_smooth, parse_boxplot, parse_violin, parse_density))(input)
+    alt((parse_line, parse_point, parse_bar, parse_ribbon, parse_histogram, parse_smooth, parse_boxplot, parse_violin, parse_density, parse_heatmap))(input)
 }
 
 #[cfg(test)]

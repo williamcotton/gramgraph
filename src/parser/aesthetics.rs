@@ -32,6 +32,7 @@ pub fn parse_aesthetics(input: &str) -> IResult<&str, Aesthetics> {
     let mut alpha = None;
     let mut ymin = None;
     let mut ymax = None;
+    let mut fill = None;
 
     for (key, value) in args {
         match key.as_str() {
@@ -43,6 +44,7 @@ pub fn parse_aesthetics(input: &str) -> IResult<&str, Aesthetics> {
             "alpha" => alpha = Some(value),
             "ymin" => ymin = Some(value),
             "ymax" => ymax = Some(value),
+            "fill" => fill = Some(value),
             _ => {} // Ignore unknown keys
         }
     }
@@ -57,7 +59,7 @@ pub fn parse_aesthetics(input: &str) -> IResult<&str, Aesthetics> {
     
     // y is now optional (e.g. for histogram)
 
-    Ok((input, Aesthetics { x, y, color, size, shape, alpha, ymin, ymax }))
+    Ok((input, Aesthetics { x, y, color, size, shape, alpha, ymin, ymax, fill }))
 }
 
 /// Parse a single aesthetic argument (key: value)

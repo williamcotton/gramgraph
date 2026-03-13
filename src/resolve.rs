@@ -65,6 +65,7 @@ fn resolve_layer_aesthetics(
         Layer::Boxplot(b) => extract_mapped_string(&b.color),
         Layer::Violin(v) => extract_mapped_string(&v.color),
         Layer::Density(d) => extract_mapped_string(&d.color),
+        Layer::Heatmap(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.color.clone()));
 
@@ -77,13 +78,14 @@ fn resolve_layer_aesthetics(
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.width),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.width),
         Layer::Density(_) => None,
+        Layer::Heatmap(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.size.clone()));
 
     // Resolve shape mapping (point only)
     let shape = match layer {
         Layer::Point(p) => extract_mapped_string(&p.shape),
-        Layer::Line(_) | Layer::Bar(_) | Layer::Ribbon(_) | Layer::Boxplot(_) | Layer::Violin(_) | Layer::Density(_) => None,
+        Layer::Line(_) | Layer::Bar(_) | Layer::Ribbon(_) | Layer::Boxplot(_) | Layer::Violin(_) | Layer::Density(_) | Layer::Heatmap(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.shape.clone()));
 
@@ -96,6 +98,7 @@ fn resolve_layer_aesthetics(
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.alpha),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.alpha),
         Layer::Density(d) => extract_mapped_string_from_f64(&d.alpha),
+        Layer::Heatmap(h) => extract_mapped_string_from_f64(&h.alpha),
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.alpha.clone()));
 
@@ -112,6 +115,13 @@ fn resolve_layer_aesthetics(
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.ymax.clone()));
 
+    // Resolve fill column (heatmap value)
+    let fill = match layer {
+        Layer::Heatmap(h) => h.fill.clone(),
+        _ => None,
+    }
+    .or_else(|| global_aes.as_ref().and_then(|a| a.fill.clone()));
+
     Ok(ResolvedAesthetics {
         x_col,
         y_col,
@@ -121,6 +131,7 @@ fn resolve_layer_aesthetics(
         size,
         shape,
         alpha,
+        fill,
     })
 }
 
@@ -134,6 +145,7 @@ fn resolve_positional(layer: &Layer, global_aes: &Option<Aesthetics>) -> Result<
         Layer::Boxplot(b) => (b.x.as_ref(), b.y.as_ref()),
         Layer::Violin(v) => (v.x.as_ref(), v.y.as_ref()),
         Layer::Density(d) => (d.x.as_ref(), None), // Density only needs x
+        Layer::Heatmap(h) => (h.x.as_ref(), h.y.as_ref()),
     };
 
     // Get x column
@@ -217,6 +229,7 @@ mod tests {
                 alpha: None,
                 ymin: None,
                 ymax: None,
+                fill: None,
             }),
             layers: vec![Layer::Line(LineLayer::default())],
             labels: Some(crate::parser::ast::Labels::default()),
@@ -245,6 +258,7 @@ mod tests {
                 alpha: None,
                 ymin: None,
                 ymax: None,
+                fill: None,
             }),
             layers: vec![Layer::Point(PointLayer {
                 x: None,
@@ -292,6 +306,7 @@ mod tests {
                 alpha: None,
                 ymin: None,
                 ymax: None,
+                fill: None,
             }),
             layers: vec![],
             labels: Some(crate::parser::ast::Labels::default()),
