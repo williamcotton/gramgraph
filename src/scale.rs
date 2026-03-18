@@ -54,13 +54,22 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 } else { (-0.5, n - 0.5) },
                 is_categorical: true,
                 categories: x_mm.categories,
+                tick_positions: vec![],
             }
         } else {
             // Continuous Scale
-            let (min, max) = if let Some(s) = &spec.x_scale_spec {
-                if let Some((lmin, lmax)) = s.limits { (lmin, lmax) }
-                else { pad_range(x_mm.min, x_mm.max) }
-            } else { pad_range(x_mm.min, x_mm.max) };
+            let (min, max, ticks) = if let Some(s) = &spec.x_scale_spec {
+                if let Some((lmin, lmax)) = s.limits {
+                    let ticks = nice_ticks_within(lmin, lmax, 8);
+                    (lmin, lmax, ticks)
+                } else {
+                    let ((nmin, nmax), ticks) = nice_range(x_mm.min, x_mm.max, 8);
+                    (nmin, nmax, ticks)
+                }
+            } else {
+                let ((nmin, nmax), ticks) = nice_range(x_mm.min, x_mm.max, 8);
+                (nmin, nmax, ticks)
+            };
 
             Scale {
                 domain: (min, max),
@@ -69,6 +78,7 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 } else { (min, max) },
                 is_categorical: false,
                 categories: Vec::new(),
+                tick_positions: ticks,
             }
         };
 
@@ -82,12 +92,21 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 } else { (-0.5, n - 0.5) },
                 is_categorical: true,
                 categories: y_mm.categories,
+                tick_positions: vec![],
             }
         } else {
-            let (min, max) = if let Some(s) = &spec.y_scale_spec {
-                if let Some((lmin, lmax)) = s.limits { (lmin, lmax) }
-                else { pad_range(y_mm.min, y_mm.max) }
-            } else { pad_range(y_mm.min, y_mm.max) };
+            let (min, max, ticks) = if let Some(s) = &spec.y_scale_spec {
+                if let Some((lmin, lmax)) = s.limits {
+                    let ticks = nice_ticks_within(lmin, lmax, 8);
+                    (lmin, lmax, ticks)
+                } else {
+                    let ((nmin, nmax), ticks) = nice_range(y_mm.min, y_mm.max, 8);
+                    (nmin, nmax, ticks)
+                }
+            } else {
+                let ((nmin, nmax), ticks) = nice_range(y_mm.min, y_mm.max, 8);
+                (nmin, nmax, ticks)
+            };
 
             Scale {
                 domain: (min, max),
@@ -96,6 +115,7 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 } else { (min, max) },
                 is_categorical: false,
                 categories: Vec::new(),
+                tick_positions: ticks,
             }
         };
 
@@ -254,12 +274,77 @@ where I: Iterator<Item = &'a MinMax>
     global
 }
 
-fn pad_range(min: f64, max: f64) -> (f64, f64) {
-    if min == max {
-        (min - 1.0, max + 1.0)
+/// Find the nearest "nice" step size (1, 2, 5 × 10^n) for a given range and target tick count.
+fn nice_step(data_range: f64, target_count: usize) -> f64 {
+    if data_range <= 0.0 || target_count == 0 {
+        return 1.0;
+    }
+    let rough_step = data_range / target_count as f64;
+    let magnitude = 10.0_f64.powf(rough_step.log10().floor());
+    let residual = rough_step / magnitude;
+
+    let nice = if residual <= 1.5 {
+        1.0
+    } else if residual <= 3.5 {
+        2.0
+    } else if residual <= 7.5 {
+        5.0
     } else {
-        let padding = (max - min) * 0.05;
-        (min - padding, max + padding)
+        10.0
+    };
+
+    nice * magnitude
+}
+
+/// Expand min/max to nice boundaries and compute tick positions.
+/// Returns ((nice_min, nice_max), tick_positions).
+fn nice_range(data_min: f64, data_max: f64, target_count: usize) -> ((f64, f64), Vec<f64>) {
+    if data_min == data_max {
+        let ticks = vec![data_min - 1.0, data_min, data_min + 1.0];
+        return ((data_min - 1.0, data_max + 1.0), ticks);
+    }
+
+    let step = nice_step(data_max - data_min, target_count);
+    let nice_min = (data_min / step).floor() * step;
+    let nice_max = (data_max / step).ceil() * step;
+
+    let mut ticks = Vec::new();
+    let mut v = nice_min;
+    // Use a small epsilon to avoid floating-point drift missing the last tick
+    while v <= nice_max + step * 1e-9 {
+        ticks.push(v);
+        v += step;
+    }
+
+    ((nice_min, nice_max), ticks)
+}
+
+/// Compute nice tick positions within user-specified limits (no domain expansion).
+fn nice_ticks_within(min: f64, max: f64, target_count: usize) -> Vec<f64> {
+    if min == max {
+        return vec![min];
+    }
+    let step = nice_step(max - min, target_count);
+    let start = (min / step).ceil() * step;
+    let mut ticks = Vec::new();
+    let mut v = start;
+    while v <= max + step * 1e-9 {
+        ticks.push(v);
+        v += step;
+    }
+    ticks
+}
+
+/// Format a tick value cleanly: integer if whole, trimmed trailing zeros otherwise.
+pub fn format_nice_number(v: f64) -> String {
+    if (v - v.round()).abs() < 1e-9 && v.abs() < 1e15 {
+        format!("{}", v.round() as i64)
+    } else {
+        // Use enough precision, then trim trailing zeros
+        let s = format!("{:.10}", v);
+        let s = s.trim_end_matches('0');
+        let s = s.trim_end_matches('.');
+        s.to_string()
     }
 }
 
@@ -319,14 +404,16 @@ mod tests {
         let data = make_render_data(vec![0.0, 10.0], vec![0.0, 100.0]);
         let spec = make_resolved_spec();
         let scales = build_scales(&data, &spec).unwrap();
-        
+
         assert_eq!(scales.panels.len(), 1);
         let panel = &scales.panels[0];
-        
-        // Check padding
-        assert!(panel.x.domain.0 < 0.0);
-        assert!(panel.x.domain.1 > 10.0);
+
+        // Nice range should snap to clean boundaries
+        assert!(panel.x.domain.0 <= 0.0);
+        assert!(panel.x.domain.1 >= 10.0);
         assert!(!panel.x.is_categorical);
+        // Should have nice tick positions
+        assert!(!panel.x.tick_positions.is_empty());
     }
 
     #[test]
@@ -334,24 +421,110 @@ mod tests {
         let data = make_render_data(vec![5.0], vec![5.0]);
         let spec = make_resolved_spec();
         let scales = build_scales(&data, &spec).unwrap();
-        
+
         let panel = &scales.panels[0];
         assert_eq!(panel.x.domain.0, 4.0);
         assert_eq!(panel.x.domain.1, 6.0);
     }
-    
+
     #[test]
     fn test_scale_categorical() {
         let mut data = make_render_data(vec![0.0, 1.0], vec![10.0, 20.0]);
         // Modify to simulate categorical
         data.panels[0].layers[0].groups[0].x_categories = Some(vec!["A".to_string(), "B".to_string()]);
-        
+
         let spec = make_resolved_spec();
         let scales = build_scales(&data, &spec).unwrap();
         let panel = &scales.panels[0];
-        
+
         assert!(panel.x.is_categorical);
         assert_eq!(panel.x.categories, vec!["A", "B"]);
         assert_eq!(panel.x.range, (-0.5, 1.5));
+        assert!(panel.x.tick_positions.is_empty());
+    }
+
+    #[test]
+    fn test_nice_step_small_range() {
+        // Range 10, target 8 => rough_step 1.25 => magnitude 1, residual 1.25 => nice 1 => step 1
+        let step = nice_step(10.0, 8);
+        assert_eq!(step, 1.0);
+    }
+
+    #[test]
+    fn test_nice_step_large_range() {
+        // Range 1000, target 8 => rough_step 125 => magnitude 100, residual 1.25 => nice 1 => step 100
+        let step = nice_step(1000.0, 8);
+        assert_eq!(step, 100.0);
+    }
+
+    #[test]
+    fn test_nice_step_fractional_range() {
+        // Range 0.5, target 8 => rough 0.0625 => mag 0.01, res 6.25 => nice 10 => 0.1
+        // Actually: log10(0.0625) = -1.204, floor = -2, mag = 0.01, res = 6.25 => nice 10 => 0.1
+        // But rough_step 0.0625: log10(0.0625) ≈ -1.204, floor(-1.204) = -2, mag = 0.01, res = 6.25 => nice 5 => 0.05
+        let step = nice_step(0.5, 8);
+        assert_eq!(step, 0.05);
+    }
+
+    #[test]
+    fn test_nice_range_zero_to_ten() {
+        let ((nmin, nmax), ticks) = nice_range(0.0, 10.0, 8);
+        assert_eq!(nmin, 0.0);
+        assert_eq!(nmax, 10.0);
+        // Step is 1, so ticks: 0..10
+        assert_eq!(ticks, vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+    }
+
+    #[test]
+    fn test_nice_range_ugly_boundaries() {
+        // Data from -0.385 to 7.585 should snap to clean values
+        let ((nmin, nmax), ticks) = nice_range(-0.385, 7.585, 8);
+        assert_eq!(nmin, -1.0);
+        assert_eq!(nmax, 8.0);
+        // All ticks should be integers
+        for t in &ticks {
+            assert_eq!(*t, t.round(), "tick {} is not a round number", t);
+        }
+    }
+
+    #[test]
+    fn test_nice_range_single_value() {
+        let ((nmin, nmax), ticks) = nice_range(5.0, 5.0, 8);
+        assert_eq!(nmin, 4.0);
+        assert_eq!(nmax, 6.0);
+        assert_eq!(ticks.len(), 3);
+    }
+
+    #[test]
+    fn test_nice_range_negative_values() {
+        let ((nmin, nmax), ticks) = nice_range(-15.0, -3.0, 8);
+        assert!(nmin <= -15.0);
+        assert!(nmax >= -3.0);
+        for t in &ticks {
+            assert_eq!(*t, t.round(), "tick {} is not a round number", t);
+        }
+    }
+
+    #[test]
+    fn test_nice_ticks_within() {
+        let ticks = nice_ticks_within(0.0, 100.0, 8);
+        assert!(!ticks.is_empty());
+        assert!(*ticks.first().unwrap() >= 0.0);
+        assert!(*ticks.last().unwrap() <= 100.0 + 1e-9);
+    }
+
+    #[test]
+    fn test_format_nice_number_integers() {
+        assert_eq!(format_nice_number(0.0), "0");
+        assert_eq!(format_nice_number(5.0), "5");
+        assert_eq!(format_nice_number(-10.0), "-10");
+        assert_eq!(format_nice_number(100.0), "100");
+    }
+
+    #[test]
+    fn test_format_nice_number_decimals() {
+        assert_eq!(format_nice_number(0.5), "0.5");
+        assert_eq!(format_nice_number(2.5), "2.5");
+        assert_eq!(format_nice_number(0.25), "0.25");
     }
 }

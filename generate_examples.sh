@@ -75,6 +75,10 @@ cat examples/demographics.csv | cargo run -- 'aes(x: height, color: gender) | de
 echo "Generating heatmap.svg..."
 cat examples/heatmap_data.csv | cargo run -- 'aes(x: x, y: y, fill: value) | heatmap() | labs(title: "Weekly Activity Heatmap", x: "Day", y: "Time of Day") | theme_minimal()' --format svg > examples/heatmap.svg
 
+# Nice Ticks (irregular data with clean axis labels)
+echo "Generating nice_ticks.svg..."
+cat examples/measurements.csv | cargo run -- 'aes(x: elapsed, y: temperature) | point(color: "steelblue", size: 4) | line(color: "steelblue", alpha: 0.5) | labs(title: "Sensor Readings", subtitle: "Nice ticks from irregular sample times", x: "Elapsed Time (hrs)", y: "Temperature (C)") | theme_minimal()' --format svg > examples/nice_ticks.svg
+
 # --- Theme Examples ---
 
 # Custom Theme with Element Functions

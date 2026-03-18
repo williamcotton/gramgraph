@@ -140,6 +140,16 @@ cat examples/heatmap_data.csv | gramgraph 'aes(x: x, y: y, fill: value) | heatma
 
 ![Heatmap](examples/heatmap.svg)
 
+### Nice Ticks (Irregular Data)
+
+Numeric axes automatically snap to clean, human-friendly tick values even when data points fall at irregular positions.
+
+```bash
+cat examples/measurements.csv | gramgraph 'aes(x: elapsed, y: temperature) | point(color: "steelblue", size: 4) | line(color: "steelblue", alpha: 0.5) | labs(title: "Sensor Readings", subtitle: "Nice ticks from irregular sample times", x: "Elapsed Time (hrs)", y: "Temperature (C)") | theme_minimal()' --format svg > examples/nice_ticks.svg
+```
+
+![Nice Ticks](examples/nice_ticks.svg)
+
 ### Reverse Scale
 
 ```bash

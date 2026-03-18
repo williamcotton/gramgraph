@@ -17,42 +17,42 @@ Value
 <line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="537" y1="546" x2="537" y2="64"/>
 <line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="626" y1="546" x2="626" y2="64"/>
 <line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="716" y1="546" x2="716" y2="64"/>
-<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="525" x2="784" y2="525"/>
-<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="452" x2="784" y2="452"/>
-<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="379" x2="784" y2="379"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="546" x2="784" y2="546"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="466" x2="784" y2="466"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="386" x2="784" y2="386"/>
 <line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="305" x2="784" y2="305"/>
-<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="232" x2="784" y2="232"/>
-<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="159" x2="784" y2="159"/>
-<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="86" x2="784" y2="86"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="225" x2="784" y2="225"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="145" x2="784" y2="145"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="66" y1="64" x2="784" y2="64"/>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="65,64 65,546 "/>
-<text x="56" y="525" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-0.0
+<text x="56" y="546" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+0
 </text>
-<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,525 65,525 "/>
-<text x="56" y="452" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,546 65,546 "/>
+<text x="56" y="466" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 0.5
 </text>
-<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,452 65,452 "/>
-<text x="56" y="379" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-1.0
+<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,466 65,466 "/>
+<text x="56" y="386" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+1
 </text>
-<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,379 65,379 "/>
+<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,386 65,386 "/>
 <text x="56" y="305" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 1.5
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,305 65,305 "/>
-<text x="56" y="232" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-2.0
+<text x="56" y="225" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+2
 </text>
-<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,232 65,232 "/>
-<text x="56" y="159" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,225 65,225 "/>
+<text x="56" y="145" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 2.5
 </text>
-<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,159 65,159 "/>
-<text x="56" y="86" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-3.0
+<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,145 65,145 "/>
+<text x="56" y="64" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+3
 </text>
-<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,86 65,86 "/>
+<polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="60,64 65,64 "/>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="66,547 784,547 "/>
 <text x="88" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 1.29
@@ -89,20 +89,20 @@ Value
 <text x="25" y="305" dy="0.5ex" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000" transform="rotate(270, 25, 305)">
 Count
 </text>
-<rect x="70" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="115" y="232" width="36" height="293" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="160" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="205" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="249" y="232" width="36" height="293" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="294" y="232" width="36" height="293" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="339" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="384" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="429" y="232" width="36" height="293" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="474" y="86" width="36" height="439" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="519" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="564" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="608" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="653" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="698" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
-<rect x="743" y="379" width="36" height="146" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="70" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="115" y="225" width="36" height="321" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="160" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="205" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="249" y="225" width="36" height="321" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="294" y="225" width="36" height="321" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="339" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="384" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="429" y="225" width="36" height="321" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="474" y="64" width="36" height="482" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="519" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="564" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="608" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="653" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="698" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
+<rect x="743" y="386" width="36" height="160" opacity="1" fill="#0000FF" stroke="none"/>
 </svg>

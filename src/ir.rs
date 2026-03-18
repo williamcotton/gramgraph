@@ -157,6 +157,7 @@ pub struct Scale {
     pub range: (f64, f64),  // Pixel/Coordinate min/max
     pub is_categorical: bool,
     pub categories: Vec<String>, // If categorical, maps index -> label
+    pub tick_positions: Vec<f64>, // Precomputed nice tick positions (empty for categorical)
 }
 
 // =============================================================================

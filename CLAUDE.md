@@ -25,6 +25,7 @@ This architecture enables powerful, declarative chart specifications with clean 
 - **Bar/Boxplot Positioning**: Smart dodging (occupancy-based) for categorical axes
 - **Statistical Transformations**: `bin`, `count`, `smooth`, `boxplot` (5-number summary + outliers), `density` (Gaussian KDE), `heatmap` (2D binning)
 - **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`
+- **Nice Ticks**: D3-style algorithm snaps numeric axis domains to clean boundaries and generates human-friendly tick positions (0, 1, 2... or 0, 5, 10...)
 - **Coordinates**: `coord_flip()` for horizontal charts
 - **Visual Customization**: `labs()` for titles/labels, `theme_minimal()` for presets
 - **Hierarchical Theme System**: `element_text()`, `element_line()`, `element_rect()`, `element_blank()` with inheritance
@@ -177,6 +178,8 @@ Swaps X and Y axes. Useful for horizontal bar charts.
 - `scale_x_reverse()`, `scale_y_reverse()`
 - `scale_x_log10()`, `scale_y_log10()`
 - `xlim(min, max)`, `ylim(min, max)`
+
+**Nice Ticks (automatic):** Numeric axes use a D3-style algorithm to snap domain boundaries to clean values and produce human-friendly tick positions. The algorithm picks step sizes from the series 1, 2, 5 × 10^n. For example, data ranging from 0.37 to 11.73 produces ticks at 0, 1, 2, ..., 12 instead of ugly values like 0.37, 2.15, etc. When `xlim()`/`ylim()` are specified, nice ticks are computed within those exact limits without expanding the domain. Categorical axes (bar, boxplot, violin) are unaffected.
 
 #### Themes
 

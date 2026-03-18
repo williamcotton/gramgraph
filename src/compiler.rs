@@ -742,8 +742,8 @@ mod tests {
 
         let scales = ScaleSystem {
             panels: vec![PanelScales {
-                x: Scale { domain: (0.0, 1.0), range: (0.0, 1.0), is_categorical: false, categories: vec![] },
-                y: Scale { domain: (0.0, 20.0), range: (0.0, 20.0), is_categorical: false, categories: vec![] },
+                x: Scale { domain: (0.0, 1.0), range: (0.0, 1.0), is_categorical: false, categories: vec![], tick_positions: vec![] },
+                y: Scale { domain: (0.0, 20.0), range: (0.0, 20.0), is_categorical: false, categories: vec![], tick_positions: vec![] },
             }],
         };
 

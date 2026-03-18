@@ -233,21 +233,26 @@ fn blank_tick_label(_value: &f64) -> String {
 
 fn estimate_numeric_tick_label_width<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
+    tick_positions: &[f64],
     range: (f64, f64),
     style: &TextStyle,
     font_size: f64,
 ) -> u32 {
-    let coord: RangedCoordf64 = (range.0..range.1).into();
-    let mut labels: Vec<String> = coord
-        .key_points(11)
-        .into_iter()
-        .map(|value| coord.format_ext(&value))
-        .collect();
-
-    if labels.is_empty() {
-        labels.push(coord.format_ext(&range.0));
-        labels.push(coord.format_ext(&range.1));
-    }
+    let labels: Vec<String> = if !tick_positions.is_empty() {
+        tick_positions.iter().map(|v| crate::scale::format_nice_number(*v)).collect()
+    } else {
+        let coord: RangedCoordf64 = (range.0..range.1).into();
+        let mut lbls: Vec<String> = coord
+            .key_points(11)
+            .into_iter()
+            .map(|value| coord.format_ext(&value))
+            .collect();
+        if lbls.is_empty() {
+            lbls.push(coord.format_ext(&range.0));
+            lbls.push(coord.format_ext(&range.1));
+        }
+        lbls
+    };
 
     let (max_width, _) = max_text_dimensions(area, labels.iter().map(String::as_str), style, font_size);
     max_width
@@ -300,7 +305,7 @@ fn calculate_axis_layout<DB: DrawingBackend>(
         );
         max_width
     } else {
-        estimate_numeric_tick_label_width(area, panel.y_scale.range, y_axis_style, font_size)
+        estimate_numeric_tick_label_width(area, &panel.y_scale.tick_positions, panel.y_scale.range, y_axis_style, font_size)
     };
 
     let (_, x_desc_height) = panel.x_label.as_ref()
@@ -743,10 +748,35 @@ impl Canvas {
             }
         };
 
+        // Nice tick formatters for numeric axes
+        let x_ticks = panel.x_scale.tick_positions.clone();
+        let nice_formatter_x = move |v: &f64| {
+            // Snap to nearest precomputed tick if close enough
+            for t in &x_ticks {
+                if (v - t).abs() < (v.abs().max(t.abs())) * 1e-6 + 1e-12 {
+                    return crate::scale::format_nice_number(*t);
+                }
+            }
+            String::new()
+        };
+
+        let y_ticks = panel.y_scale.tick_positions.clone();
+        let nice_formatter_y = move |v: &f64| {
+            for t in &y_ticks {
+                if (v - t).abs() < (v.abs().max(t.abs())) * 1e-6 + 1e-12 {
+                    return crate::scale::format_nice_number(*t);
+                }
+            }
+            String::new()
+        };
+
         if panel.x_scale.is_categorical && !axis_layout.manual_rotated_x_labels {
             mesh.x_label_formatter(&formatter_x);
         } else if axis_layout.manual_rotated_x_labels {
             mesh.x_label_formatter(&blank_tick_label);
+        } else if !panel.x_scale.tick_positions.is_empty() {
+            mesh.x_labels(panel.x_scale.tick_positions.len());
+            mesh.x_label_formatter(&nice_formatter_x);
         }
 
         // Custom Y Labels if categorical (e.g. coord_flip)
@@ -765,6 +795,9 @@ impl Canvas {
 
         if panel.y_scale.is_categorical {
             mesh.y_label_formatter(&formatter_y);
+        } else if !panel.y_scale.tick_positions.is_empty() {
+            mesh.y_labels(panel.y_scale.tick_positions.len());
+            mesh.y_label_formatter(&nice_formatter_y);
         }
         
         mesh.draw().context("Failed to draw mesh")?;
@@ -936,6 +969,7 @@ mod tests {
                     "Tue".to_string(),
                     "Wed".to_string(),
                 ],
+                tick_positions: vec![],
             },
             y_scale: Scale {
                 domain: (0.0, 2.0),
@@ -946,6 +980,7 @@ mod tests {
                     "Evening".to_string(),
                     "Afternoon".to_string(),
                 ],
+                tick_positions: vec![],
             },
             commands: Vec::<DrawCommand>::new(),
         }
@@ -963,12 +998,14 @@ mod tests {
                 range: (-0.5, 7.2),
                 is_categorical: false,
                 categories: vec![],
+                tick_positions: vec![],
             },
             y_scale: Scale {
                 domain: (0.0, 0.3),
                 range: (0.0, 0.3),
                 is_categorical: false,
                 categories: vec![],
+                tick_positions: vec![],
             },
             commands: Vec::<DrawCommand>::new(),
         }
