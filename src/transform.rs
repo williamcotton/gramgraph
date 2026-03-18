@@ -152,7 +152,7 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
                     unique_y.push(val);
                 }
             }
-            unique_y.sort();
+            // Preserve data appearance order (no alphabetical sort)
             Some(unique_y.iter().enumerate().map(|(i, s)| (s.clone(), i as f64)).collect())
         } else {
             None
@@ -222,16 +222,16 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
     let mut category_order = Vec::new();
     
     if use_categorical {
-        // Collect all unique categories to assign indices
-        let mut unique_cats: HashSet<String> = HashSet::new();
-        // Preserve order of appearance if possible, or sort? 
-        // GoG usually sorts unless factor provided. Let's sort for determinism.
+        // Collect unique categories preserving order of first appearance in data.
+        // This lets the CSV control display order (like ggplot2 factor levels).
+        let mut seen_cats: HashSet<String> = HashSet::new();
         for s in &all_x_strings {
-            unique_cats.insert((*s).clone());
+            if seen_cats.insert((*s).clone()) {
+                category_order.push((*s).clone());
+            }
         }
-        category_order = unique_cats.into_iter().collect();
-        
-        // Try to sort numerically if possible
+
+        // Sort numerically if all categories are numbers
         let all_numeric_cats = category_order.iter().all(|s| s.parse::<f64>().is_ok());
         if all_numeric_cats {
             category_order.sort_by(|a, b| {
@@ -239,8 +239,6 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
                 let fb = b.parse::<f64>().unwrap();
                 fa.partial_cmp(&fb).unwrap_or(std::cmp::Ordering::Equal)
             });
-        } else {
-            category_order.sort();
         }
         
         for (i, cat) in category_order.iter().enumerate() {
@@ -1008,8 +1006,7 @@ fn compute_heatmap_stat(
                     unique_y.push(y_s.clone());
                 }
             }
-            unique_x.sort();
-            unique_y.sort();
+            // Preserve data appearance order (no alphabetical sort)
 
             let x_count = unique_x.len();
             let y_count = unique_y.len();

@@ -33,7 +33,7 @@ Day
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="89,546 94,546 "/>
 <text x="85" y="466" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Afternoon
+Morning
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="89,466 94,466 "/>
 <text x="85" y="386" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -41,7 +41,7 @@ Afternoon
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="89,386 94,386 "/>
 <text x="85" y="305" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Evening
+Afternoon
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="89,305 94,305 "/>
 <text x="85" y="225" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -49,7 +49,7 @@ Evening
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="89,225 94,225 "/>
 <text x="85" y="145" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Morning
+Evening
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="89,145 94,145 "/>
 <text x="85" y="64" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -62,7 +62,7 @@ Morning
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="95,547 95,552 "/>
 <text x="163" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Fri
+Mon
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="163,547 163,552 "/>
 <text x="232" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -70,7 +70,7 @@ Fri
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="232,547 232,552 "/>
 <text x="301" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Mon
+Tue
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="301,547 301,552 "/>
 <text x="370" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -78,7 +78,7 @@ Mon
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="370,547 370,552 "/>
 <text x="439" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Thu
+Wed
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="439,547 439,552 "/>
 <text x="508" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -86,7 +86,7 @@ Thu
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="508,547 508,552 "/>
 <text x="577" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Tue
+Thu
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="577,547 577,552 "/>
 <text x="646" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -94,7 +94,7 @@ Tue
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="646,547 646,552 "/>
 <text x="715" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
-Wed
+Fri
 </text>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="715,547 715,552 "/>
 <text x="784" y="557" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
@@ -104,19 +104,19 @@ Wed
 <text x="26" y="305" dy="0.5ex" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000" transform="rotate(270, 26, 305)">
 Time of Day
 </text>
-<rect x="95" y="386" width="137" height="160" opacity="1" fill="#FDE725" stroke="none"/>
-<rect x="95" y="225" width="137" height="161" opacity="1" fill="#44B174" stroke="none"/>
-<rect x="95" y="64" width="137" height="161" opacity="1" fill="#306D8B" stroke="none"/>
-<rect x="232" y="386" width="138" height="160" opacity="1" fill="#287F8C" stroke="none"/>
-<rect x="232" y="225" width="138" height="161" opacity="1" fill="#440154" stroke="none"/>
-<rect x="232" y="64" width="138" height="161" opacity="1" fill="#3F2F73" stroke="none"/>
-<rect x="370" y="386" width="138" height="160" opacity="1" fill="#32A180" stroke="none"/>
-<rect x="370" y="225" width="138" height="161" opacity="1" fill="#3F2F73" stroke="none"/>
-<rect x="370" y="64" width="138" height="161" opacity="1" fill="#3C4683" stroke="none"/>
-<rect x="508" y="386" width="138" height="160" opacity="1" fill="#44B174" stroke="none"/>
-<rect x="508" y="225" width="138" height="161" opacity="1" fill="#3C4683" stroke="none"/>
-<rect x="508" y="64" width="138" height="161" opacity="1" fill="#375B8B" stroke="none"/>
-<rect x="646" y="386" width="138" height="160" opacity="1" fill="#A2D648" stroke="none"/>
-<rect x="646" y="225" width="138" height="161" opacity="1" fill="#306D8B" stroke="none"/>
-<rect x="646" y="64" width="138" height="161" opacity="1" fill="#411864" stroke="none"/>
+<rect x="95" y="386" width="137" height="160" opacity="1" fill="#3F2F73" stroke="none"/>
+<rect x="95" y="225" width="137" height="161" opacity="1" fill="#287F8C" stroke="none"/>
+<rect x="95" y="64" width="137" height="161" opacity="1" fill="#440154" stroke="none"/>
+<rect x="232" y="386" width="138" height="160" opacity="1" fill="#375B8B" stroke="none"/>
+<rect x="232" y="225" width="138" height="161" opacity="1" fill="#44B174" stroke="none"/>
+<rect x="232" y="64" width="138" height="161" opacity="1" fill="#3C4683" stroke="none"/>
+<rect x="370" y="386" width="138" height="160" opacity="1" fill="#411864" stroke="none"/>
+<rect x="370" y="225" width="138" height="161" opacity="1" fill="#A2D648" stroke="none"/>
+<rect x="370" y="64" width="138" height="161" opacity="1" fill="#306D8B" stroke="none"/>
+<rect x="508" y="386" width="138" height="160" opacity="1" fill="#3C4683" stroke="none"/>
+<rect x="508" y="225" width="138" height="161" opacity="1" fill="#32A180" stroke="none"/>
+<rect x="508" y="64" width="138" height="161" opacity="1" fill="#3F2F73" stroke="none"/>
+<rect x="646" y="386" width="138" height="160" opacity="1" fill="#306D8B" stroke="none"/>
+<rect x="646" y="225" width="138" height="161" opacity="1" fill="#FDE725" stroke="none"/>
+<rect x="646" y="64" width="138" height="161" opacity="1" fill="#44B174" stroke="none"/>
 </svg>
