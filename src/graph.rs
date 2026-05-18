@@ -1,14 +1,61 @@
 use anyhow::{Context, Result};
 use image::{ImageEncoder, RgbImage, imageops::FilterType};
-use plotters::coord::ranged1d::{Ranged, ValueFormatter};
+use plotters::coord::ranged1d::{KeyPointHint, NoDefaultFormatting, Ranged, ValueFormatter};
 use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
 use plotters::style::{FontStyle, FontTransform, text_anchor::{HPos, VPos, Pos}};
+use std::ops::Range;
+use crate::datetime::format_datetime_tick;
 use crate::ir::{SceneGraph, PanelScene, DrawCommand};
 use crate::{OutputFormat, RenderOptions};
 use crate::theme_resolve::{ResolvedTheme, FontFace, parse_color as resolve_color};
 
 const PNG_SUPERSAMPLING_SCALE: u32 = 2;
+
+struct FixedKeyPointCoord {
+    inner: RangedCoordf64,
+    key_points: Vec<f64>,
+}
+
+impl FixedKeyPointCoord {
+    fn new(range: Range<f64>, key_points: Vec<f64>) -> Self {
+        Self {
+            inner: range.into(),
+            key_points,
+        }
+    }
+}
+
+impl Ranged for FixedKeyPointCoord {
+    type ValueType = f64;
+    type FormatOption = NoDefaultFormatting;
+
+    fn range(&self) -> Range<Self::ValueType> {
+        self.inner.range()
+    }
+
+    fn map(&self, value: &Self::ValueType, limit: (i32, i32)) -> i32 {
+        self.inner.map(value, limit)
+    }
+
+    fn key_points<Hint: KeyPointHint>(&self, hint: Hint) -> Vec<Self::ValueType> {
+        if hint.weight().allow_light_points() {
+            Vec::new()
+        } else {
+            self.key_points.clone()
+        }
+    }
+
+    fn axis_pixel_range(&self, limit: (i32, i32)) -> Range<i32> {
+        self.inner.axis_pixel_range(limit)
+    }
+}
+
+impl ValueFormatter<f64> for FixedKeyPointCoord {
+    fn format(value: &f64) -> String {
+        format!("{:?}", value)
+    }
+}
 
 /// Style configuration for line layers
 #[derive(Debug, Clone, Default)]
@@ -385,16 +432,18 @@ fn calculate_axis_layout<DB: DrawingBackend>(
     }
 }
 
-fn draw_manual_rotated_x_tick_labels<DB: DrawingBackend>(
+fn draw_manual_rotated_x_tick_labels<DB, X>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
-    chart: &ChartContext<'_, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    chart: &ChartContext<'_, DB, Cartesian2d<X, RangedCoordf64>>,
     panel: &PanelScene,
     axis_layout: AxisLayout,
     x_axis_style: &TextStyle,
     angle: f64,
 ) -> Result<()>
 where
+    DB: DrawingBackend,
     DB::ErrorType: 'static,
+    X: Ranged<ValueType = f64>,
 {
     if !axis_layout.manual_rotated_x_labels {
         return Ok(());
@@ -423,15 +472,17 @@ where
     Ok(())
 }
 
-fn draw_manual_y_axis_desc<DB: DrawingBackend>(
+fn draw_manual_y_axis_desc<DB, X>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
-    chart: &ChartContext<'_, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    chart: &ChartContext<'_, DB, Cartesian2d<X, RangedCoordf64>>,
     panel: &PanelScene,
     axis_layout: AxisLayout,
     axis_desc_style: &TextStyle,
 ) -> Result<()>
 where
+    DB: DrawingBackend,
     DB::ErrorType: 'static,
+    X: Ranged<ValueType = f64>,
 {
     let Some(y_label) = panel.y_label.as_ref() else {
         return Ok(());
@@ -459,6 +510,37 @@ where
         .context("Failed to draw y-axis description")?;
 
     Ok(())
+}
+
+fn datetime_tick_values(panel: &PanelScene) -> Option<Vec<f64>> {
+    let datetime = panel.x_scale.datetime.as_ref()?;
+    let interval = datetime.interval_seconds?;
+    if interval <= 0.0 || !interval.is_finite() {
+        return None;
+    }
+
+    let (mut start, mut end) = panel.x_scale.domain;
+    if start > end {
+        std::mem::swap(&mut start, &mut end);
+    }
+
+    if !start.is_finite() || !end.is_finite() {
+        return None;
+    }
+
+    if (end - start).abs() <= f64::EPSILON {
+        return Some(vec![start]);
+    }
+
+    let mut ticks = Vec::new();
+    let mut current = start;
+    let max_ticks = 1_000;
+    while current <= end + interval * 1e-9 && ticks.len() < max_ticks {
+        ticks.push(current);
+        current += interval;
+    }
+
+    Some(ticks)
 }
 
 /// The Rendering Backend
@@ -661,9 +743,58 @@ impl Canvas {
             .x_label_area_size(axis_layout.x_label_area_size)
             .y_label_area_size(axis_layout.y_label_area_size);
 
-        let mut chart = chart_builder
-            .build_cartesian_2d(x_range, y_range)
-            .context("Failed to build chart")?;
+        if let Some(ticks) = datetime_tick_values(panel) {
+            let mut chart = chart_builder
+                .build_cartesian_2d(FixedKeyPointCoord::new(x_range, ticks), y_range)
+                .context("Failed to build chart")?;
+            Self::draw_panel_contents(
+                area,
+                panel,
+                theme,
+                pixel_scale,
+                axis_layout,
+                &x_axis_style,
+                &y_axis_style,
+                &axis_desc_style,
+                &mut chart,
+            )?;
+        } else {
+            let mut chart = chart_builder
+                .build_cartesian_2d(x_range, y_range)
+                .context("Failed to build chart")?;
+            Self::draw_panel_contents(
+                area,
+                panel,
+                theme,
+                pixel_scale,
+                axis_layout,
+                &x_axis_style,
+                &y_axis_style,
+                &axis_desc_style,
+                &mut chart,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn draw_panel_contents<'a, DB, X>(
+        area: &DrawingArea<DB, plotters::coord::Shift>,
+        panel: &PanelScene,
+        theme: &ResolvedTheme,
+        pixel_scale: u32,
+        axis_layout: AxisLayout,
+        x_axis_style: &TextStyle,
+        y_axis_style: &TextStyle,
+        axis_desc_style: &TextStyle,
+        chart: &mut ChartContext<'a, DB, Cartesian2d<X, RangedCoordf64>>,
+    ) -> Result<()>
+    where
+        DB: DrawingBackend + 'a,
+        DB::ErrorType: 'static,
+        X: Ranged<ValueType = f64> + ValueFormatter<f64>,
+    {
 
         // Configure Mesh & Labels
         let mut mesh = chart.configure_mesh();
@@ -747,6 +878,10 @@ impl Canvas {
                 "".to_string()
             }
         };
+        let datetime_label_format = panel.x_scale.datetime.as_ref()
+            .map(|datetime| datetime.label_format.clone())
+            .unwrap_or_default();
+        let formatter_datetime = |v: &f64| format_datetime_tick(*v, &datetime_label_format);
 
         // Nice tick formatters for numeric axes
         let x_ticks = panel.x_scale.tick_positions.clone();
@@ -774,6 +909,8 @@ impl Canvas {
             mesh.x_label_formatter(&formatter_x);
         } else if axis_layout.manual_rotated_x_labels {
             mesh.x_label_formatter(&blank_tick_label);
+        } else if panel.x_scale.datetime.is_some() {
+            mesh.x_label_formatter(&formatter_datetime);
         } else if !panel.x_scale.tick_positions.is_empty() {
             mesh.x_labels(panel.x_scale.tick_positions.len());
             mesh.x_label_formatter(&nice_formatter_x);
@@ -802,8 +939,8 @@ impl Canvas {
         
         mesh.draw().context("Failed to draw mesh")?;
 
-        draw_manual_rotated_x_tick_labels(area, &chart, panel, axis_layout, &x_axis_style, theme.axis_text.angle)?;
-        draw_manual_y_axis_desc(area, &chart, panel, axis_layout, &axis_desc_style)?;
+        draw_manual_rotated_x_tick_labels(area, chart, panel, axis_layout, x_axis_style, theme.axis_text.angle)?;
+        draw_manual_y_axis_desc(area, chart, panel, axis_layout, axis_desc_style)?;
 
         // Draw Commands
         for cmd in &panel.commands {
@@ -970,6 +1107,7 @@ mod tests {
                     "Wed".to_string(),
                 ],
                 tick_positions: vec![],
+                datetime: None,
             },
             y_scale: Scale {
                 domain: (0.0, 2.0),
@@ -981,6 +1119,7 @@ mod tests {
                     "Afternoon".to_string(),
                 ],
                 tick_positions: vec![],
+                datetime: None,
             },
             commands: Vec::<DrawCommand>::new(),
         }
@@ -999,6 +1138,7 @@ mod tests {
                 is_categorical: false,
                 categories: vec![],
                 tick_positions: vec![],
+                datetime: None,
             },
             y_scale: Scale {
                 domain: (0.0, 0.3),
@@ -1006,6 +1146,7 @@ mod tests {
                 is_categorical: false,
                 categories: vec![],
                 tick_positions: vec![],
+                datetime: None,
             },
             commands: Vec::<DrawCommand>::new(),
         }

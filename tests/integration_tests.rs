@@ -30,6 +30,33 @@ fn run_gramgraph(dsl: &str, csv_content: &str) -> Result<Vec<u8>, String> {
     }
 }
 
+/// Helper function to run gramgraph and request SVG output.
+fn run_gramgraph_svg(dsl: &str, csv_content: &str) -> Result<String, String> {
+    let mut child = Command::new("cargo")
+        .args(&["run", "--bin", "gramgraph", "--", dsl, "--format", "svg"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn process: {}", e))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(csv_content.as_bytes())
+            .map_err(|e| format!("Failed to write to stdin: {}", e))?;
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("Failed to wait for process: {}", e))?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8 SVG: {}", e))
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
 /// Check if bytes are a valid PNG
 fn is_valid_png(bytes: &[u8]) -> bool {
     bytes.len() > 8 && &bytes[0..8] == &[137, 80, 78, 71, 13, 10, 26, 10]
@@ -63,6 +90,25 @@ fn test_end_to_end_line_plus_points() {
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
+}
+
+#[test]
+fn test_end_to_end_datetime_scale_formats_svg_ticks() {
+    let csv = "\
+time,temp
+2026-05-18T00:00,13.8
+2026-05-18T20:00,18.4
+2026-05-19T16:00,23.1
+";
+    let result = run_gramgraph_svg(
+        r#"aes(x: time, y: temp) | line() | point() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")"#,
+        csv,
+    );
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(svg.contains("May 18 00:00"), "SVG did not contain formatted datetime tick: {}", svg);
+    assert!(!svg.contains("2026-05-18T00:00"), "SVG still contained the raw ISO timestamp");
 }
 
 #[test]

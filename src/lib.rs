@@ -6,6 +6,7 @@ pub mod palette;
 pub mod parser;
 pub mod runtime;
 pub mod data;
+pub mod datetime;
 
 // New Architecture Modules
 pub mod ir;

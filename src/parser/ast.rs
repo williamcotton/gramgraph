@@ -125,12 +125,20 @@ pub enum ScaleType {
     Log10,
     Sqrt,
     Reverse,
+    DateTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DateTimeScaleOptions {
+    pub interval: Option<String>,
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AxisScale {
     pub scale_type: ScaleType,
     pub limits: Option<(f64, f64)>, // Custom min/max
+    pub datetime: Option<DateTimeScaleOptions>,
 }
 
 impl Default for AxisScale {
@@ -138,6 +146,7 @@ impl Default for AxisScale {
         AxisScale {
             scale_type: ScaleType::Linear,
             limits: None,
+            datetime: None,
         }
     }
 }

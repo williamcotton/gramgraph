@@ -158,6 +158,13 @@ pub struct Scale {
     pub is_categorical: bool,
     pub categories: Vec<String>, // If categorical, maps index -> label
     pub tick_positions: Vec<f64>, // Precomputed nice tick positions (empty for categorical)
+    pub datetime: Option<DateTimeScale>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DateTimeScale {
+    pub interval_seconds: Option<f64>,
+    pub label_format: String,
 }
 
 // =============================================================================

@@ -9,6 +9,10 @@ echo "Generating example images..."
 echo "Generating line_grouped.svg..."
 cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | point()' --format svg > examples/line_grouped.svg
 
+# Datetime Scale
+echo "Generating weather_datetime.svg..."
+cat examples/weather_hourly.csv | cargo run -- 'aes(x: time, y: temp) | line() | point() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")' --format svg > examples/weather_datetime.svg
+
 # Scatter Plot
 echo "Generating scatter.svg..."
 cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5)' --format svg > examples/scatter.svg

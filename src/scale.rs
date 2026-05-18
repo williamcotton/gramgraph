@@ -1,5 +1,6 @@
 use anyhow::Result;
-use crate::ir::{RenderData, ScaleSystem, PanelScales, Scale, ResolvedSpec};
+use crate::datetime::{parse_datetime_interval_seconds, DEFAULT_DATETIME_FORMAT};
+use crate::ir::{DateTimeScale, RenderData, ScaleSystem, PanelScales, Scale, ResolvedSpec};
 use crate::parser::ast::{FacetScales, ScaleType};
 
 /// Build the scale system for the plot
@@ -55,13 +56,25 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 is_categorical: true,
                 categories: x_mm.categories,
                 tick_positions: vec![],
+                datetime: None,
             }
         } else {
             // Continuous Scale
+            let is_datetime = spec.x_scale_spec.as_ref()
+                .is_some_and(|s| matches!(s.scale_type, ScaleType::DateTime));
+            let raw_min = x_mm.min;
+            let raw_max = x_mm.max;
+            let datetime_range = if raw_min == raw_max {
+                (raw_min - 1.0, raw_max + 1.0)
+            } else {
+                (raw_min, raw_max)
+            };
             let (min, max, ticks) = if let Some(s) = &spec.x_scale_spec {
                 if let Some((lmin, lmax)) = s.limits {
-                    let ticks = nice_ticks_within(lmin, lmax, 8);
+                    let ticks = if is_datetime { vec![] } else { nice_ticks_within(lmin, lmax, 8) };
                     (lmin, lmax, ticks)
+                } else if is_datetime {
+                    (datetime_range.0, datetime_range.1, vec![])
                 } else {
                     let ((nmin, nmax), ticks) = nice_range(x_mm.min, x_mm.max, 8);
                     (nmin, nmax, ticks)
@@ -72,13 +85,14 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
             };
 
             Scale {
-                domain: (min, max),
+                domain: if is_datetime { (raw_min, raw_max) } else { (min, max) },
                 range: if let Some(s) = &spec.x_scale_spec {
                     if matches!(s.scale_type, ScaleType::Reverse) { (max, min) } else { (min, max) }
                 } else { (min, max) },
                 is_categorical: false,
                 categories: Vec::new(),
                 tick_positions: ticks,
+                datetime: build_datetime_scale(spec.x_scale_spec.as_ref())?,
             }
         };
 
@@ -93,6 +107,7 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 is_categorical: true,
                 categories: y_mm.categories,
                 tick_positions: vec![],
+                datetime: None,
             }
         } else {
             let (min, max, ticks) = if let Some(s) = &spec.y_scale_spec {
@@ -116,6 +131,7 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
                 is_categorical: false,
                 categories: Vec::new(),
                 tick_positions: ticks,
+                datetime: None,
             }
         };
 
@@ -126,6 +142,30 @@ pub fn build_scales(data: &RenderData, spec: &ResolvedSpec) -> Result<ScaleSyste
     }
 
     Ok(ScaleSystem { panels: final_scales })
+}
+
+fn build_datetime_scale(axis_scale: Option<&crate::parser::ast::AxisScale>) -> Result<Option<DateTimeScale>> {
+    let Some(axis_scale) = axis_scale else {
+        return Ok(None);
+    };
+
+    if !matches!(axis_scale.scale_type, ScaleType::DateTime) {
+        return Ok(None);
+    }
+
+    let options = axis_scale.datetime.as_ref();
+    let interval_seconds = options
+        .and_then(|dt| dt.interval.as_ref())
+        .map(|value| parse_datetime_interval_seconds(value))
+        .transpose()?;
+    let label_format = options
+        .and_then(|dt| dt.format.clone())
+        .unwrap_or_else(|| DEFAULT_DATETIME_FORMAT.to_string());
+
+    Ok(Some(DateTimeScale {
+        interval_seconds,
+        label_format,
+    }))
 }
 
 #[derive(Debug, Clone, Default)]

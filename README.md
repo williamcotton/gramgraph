@@ -20,6 +20,16 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 
 ![Grouped Line Chart](examples/line_grouped.svg)
 
+### Datetime Scale
+
+Use `scale_x_datetime()` for ISO/RFC3339-like datetime strings. `interval` controls the tick spacing, and `format` uses chrono/strftime-style date labels.
+
+```bash
+cat examples/weather_hourly.csv | gramgraph 'aes(x: time, y: temp) | line() | point() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")' --format svg > examples/weather_datetime.svg
+```
+
+![Datetime Scale](examples/weather_datetime.svg)
+
 ### Scatter Plot
 
 ```bash

@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use std::collections::{HashMap, HashSet};
 use crate::data::PlotData;
+use crate::datetime::parse_datetime_value;
 use crate::ir::{RenderData, PanelData, LayerData, GroupData, FacetLayout, RenderStyle};
 use crate::ir::{ResolvedSpec, ResolvedLayer, ResolvedAesthetics, ResolvedFacet};
-use crate::parser::ast::{Layer, BarPosition, Stat};
+use crate::parser::ast::{AxisScale, Layer, BarPosition, ScaleType, Stat};
 use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, ViolinStyle, DensityStyle, HeatmapStyle};
 use crate::palette::{ColorPalette, SizePalette, ShapePalette};
 
@@ -97,7 +98,7 @@ fn process_partition(index: usize, partition: DataPartition, spec: &ResolvedSpec
     let mut layers = Vec::new();
 
     for layer_spec in &spec.layers {
-        let layer_data = process_layer(layer_spec, &partition.data)?;
+        let layer_data = process_layer(layer_spec, &partition.data, spec.x_scale_spec.as_ref())?;
         layers.push(layer_data);
     }
 
@@ -108,7 +109,11 @@ fn process_partition(index: usize, partition: DataPartition, spec: &ResolvedSpec
 }
 
 /// Process a single layer: Extract, Group, Stack
-fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerData> {
+fn process_layer(
+    layer_spec: &ResolvedLayer,
+    data: &PlotData,
+    x_scale_spec: Option<&AxisScale>,
+) -> Result<LayerData> {
     let aes = &layer_spec.aesthetics;
     
     // 1. Identify Grouping Column
@@ -207,6 +212,8 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
 
     let all_x_strings: Vec<&String> = raw_groups.values().flat_map(|d| d.x.iter()).collect();
     let all_numeric = all_x_strings.iter().all(|s| s.parse::<f64>().is_ok());
+    let use_datetime = x_scale_spec
+        .is_some_and(|scale| matches!(scale.scale_type, ScaleType::DateTime));
 
     // Heatmap with bins uses numeric x; categorical heatmap uses categorical x
     let heatmap_has_bins = match &layer_spec.original_layer {
@@ -214,7 +221,7 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
         _ => false,
     };
     let heatmap_numeric = is_heatmap_layer && heatmap_has_bins && all_numeric;
-    let use_categorical = is_bar || is_boxplot || is_violin || (!all_numeric && !heatmap_numeric);
+    let use_categorical = !use_datetime && (is_bar || is_boxplot || is_violin || (!all_numeric && !heatmap_numeric));
 
     // 4. Normalize X Values
     // If categorical, we need a unified mapping for stacking/grouping
@@ -295,6 +302,8 @@ fn process_layer(layer_spec: &ResolvedLayer, data: &PlotData) -> Result<LayerDat
             // Resolve X
             let x_val = if use_categorical {
                 *x_category_map.get(x_s).unwrap() // Should exist
+            } else if use_datetime {
+                parse_datetime_value(x_s)?
             } else {
                 x_s.parse::<f64>().unwrap() // Verified numeric earlier
             };
