@@ -249,8 +249,12 @@ pub enum Layer {
     Point(PointLayer),
     Bar(BarLayer),
     Area(AreaLayer),
+    Rug(RugLayer),
+    Spike(SpikeLayer),
     LineRange(LineRangeLayer),
     ErrorBar(ErrorBarLayer),
+    PointRange(PointRangeLayer),
+    CrossBar(CrossBarLayer),
     Ribbon(RibbonLayer),
     Boxplot(BoxplotLayer),
     Violin(ViolinLayer),
@@ -274,8 +278,12 @@ impl Layer {
             Layer::Point(p) => &p.stat,
             Layer::Bar(b) => &b.stat,
             Layer::Area(a) => &a.stat,
+            Layer::Rug(r) => &r.stat,
+            Layer::Spike(s) => &s.stat,
             Layer::LineRange(l) => &l.stat,
             Layer::ErrorBar(e) => &e.stat,
+            Layer::PointRange(p) => &p.stat,
+            Layer::CrossBar(c) => &c.stat,
             Layer::Ribbon(r) => &r.stat,
             Layer::Boxplot(b) => &b.stat,
             Layer::Violin(v) => &v.stat,
@@ -372,6 +380,68 @@ impl Default for AreaLayer {
             x: None,
             y: None,
             color: None,
+            alpha: None,
+            baseline: 0.0,
+        }
+    }
+}
+
+/// Rug marks along the plot margins.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RugLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub y: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub width: Option<AestheticValue<f64>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    /// Margin sides to draw on: b/t/l/r letters, e.g. "b" or "bl".
+    pub sides: String,
+    /// Tick length as a fraction of the visual axis span.
+    pub length: f64,
+}
+
+impl Default for RugLayer {
+    fn default() -> Self {
+        RugLayer {
+            stat: Stat::Identity,
+            x: None,
+            y: None,
+            color: None,
+            width: None,
+            alpha: None,
+            sides: "b".to_string(),
+            length: 0.03,
+        }
+    }
+}
+
+/// Spike layer: vertical stems from a baseline to y.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpikeLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub y: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub width: Option<AestheticValue<f64>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    pub baseline: f64,
+}
+
+impl Default for SpikeLayer {
+    fn default() -> Self {
+        SpikeLayer {
+            stat: Stat::Identity,
+            x: None,
+            y: None,
+            color: None,
+            width: None,
             alpha: None,
             baseline: 0.0,
         }
@@ -526,6 +596,59 @@ impl Default for SegmentLayer {
             width: None,
             alpha: None,
             label: None,
+        }
+    }
+}
+
+/// Point with a vertical interval from ymin to ymax at each x.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PointRangeLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub y: Option<String>,
+    pub ymin: Option<String>,
+    pub ymax: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub width: Option<AestheticValue<f64>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    pub size: Option<AestheticValue<f64>>,
+    pub shape: Option<AestheticValue<String>>,
+}
+
+/// Crossbar layer: interval box from ymin to ymax with a center line at y.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CrossBarLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub y: Option<String>,
+    pub ymin: Option<String>,
+    pub ymax: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    /// Crossbar box width in data/category units.
+    pub width: f64,
+    /// Stroke width for the center line.
+    pub line_width: Option<AestheticValue<f64>>,
+}
+
+impl Default for CrossBarLayer {
+    fn default() -> Self {
+        CrossBarLayer {
+            stat: Stat::Identity,
+            x: None,
+            y: None,
+            ymin: None,
+            ymax: None,
+            color: None,
+            alpha: None,
+            width: 0.5,
+            line_width: None,
         }
     }
 }

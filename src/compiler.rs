@@ -264,6 +264,11 @@ fn x_occupancy_key(x: f64) -> i64 {
     (x * 1_000_000.0).round() as i64
 }
 
+fn rug_side_enabled(sides: &str, short: char, name: &str) -> bool {
+    let sides = sides.to_ascii_lowercase();
+    sides.contains(short) || sides.split_whitespace().any(|part| part == name)
+}
+
 fn hline_points(y: f64, scales: &PanelScales, is_flipped: bool) -> Result<Vec<(f64, f64)>> {
     let y = transform_axis_value(y, &scales.y, "y")?;
     Ok(if is_flipped {
@@ -429,6 +434,132 @@ pub fn compile_geometry(
                             });
                         }
                     }
+                    RenderStyle::Rug {
+                        style,
+                        sides,
+                        length,
+                    } => {
+                        let length = length.clamp(0.0, 0.5);
+                        let include_y = layer_aes.y_col.is_some();
+                        let bottom = rug_side_enabled(sides, 'b', "bottom");
+                        let top = rug_side_enabled(sides, 't', "top");
+                        let left = rug_side_enabled(sides, 'l', "left");
+                        let right = rug_side_enabled(sides, 'r', "right");
+                        let x_low = panel_scales.x.range.0.min(panel_scales.x.range.1);
+                        let x_high = panel_scales.x.range.0.max(panel_scales.x.range.1);
+                        let y_low = panel_scales.y.range.0.min(panel_scales.y.range.1);
+                        let y_high = panel_scales.y.range.0.max(panel_scales.y.range.1);
+                        let x_len = (x_high - x_low) * length;
+                        let y_len = (y_high - y_low) * length;
+
+                        if !is_flipped {
+                            if bottom || top {
+                                for &x in &group.x {
+                                    let x = transform_axis_value(x, &panel_scales.x, "x")?;
+                                    if bottom {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(x, y_low), (x, y_low + y_len)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                    if top {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(x, y_high), (x, y_high - y_len)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                }
+                            }
+
+                            if include_y && (left || right) {
+                                for &y in &group.y {
+                                    let y = transform_axis_value(y, &panel_scales.y, "y")?;
+                                    if left {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(x_low, y), (x_low + x_len, y)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                    if right {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(x_high, y), (x_high - x_len, y)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                }
+                            }
+                        } else {
+                            if bottom || top {
+                                for &x in &group.x {
+                                    let y = transform_axis_value(x, &panel_scales.x, "x")?;
+                                    if bottom {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(y_low, y), (y_low + y_len, y)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                    if top {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(y_high, y), (y_high - y_len, y)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                }
+                            }
+
+                            if include_y && (left || right) {
+                                for &y in &group.y {
+                                    let x = transform_axis_value(y, &panel_scales.y, "y")?;
+                                    if left {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(x, x_low), (x, x_low + x_len)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                    if right {
+                                        commands.push(DrawCommand::DrawLine {
+                                            points: vec![(x, x_high), (x, x_high - x_len)],
+                                            style: style.clone(),
+                                            legend: None,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    RenderStyle::Spike(style) => {
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let points = vec![
+                                transform_data_point(
+                                    x,
+                                    group.y_start[i],
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                                transform_data_point(x, group.y[i], &panel_scales, is_flipped)?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points,
+                                style: style.clone(),
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
+                            });
+                        }
+                    }
                     RenderStyle::ErrorBar { style, width } => {
                         let cap_width = *width;
                         let half_cap = cap_width / 2.0;
@@ -492,6 +623,102 @@ pub fn compile_geometry(
                             commands.push(DrawCommand::DrawLine {
                                 points: upper_cap,
                                 style: style.clone(),
+                                legend: None,
+                            });
+                        }
+                    }
+                    RenderStyle::PointRange {
+                        line_style,
+                        point_style,
+                    } => {
+                        let mut points = Vec::with_capacity(group.x.len());
+
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let range_points = vec![
+                                transform_data_point(x, group.y_min[i], &panel_scales, is_flipped)?,
+                                transform_data_point(x, group.y_max[i], &panel_scales, is_flipped)?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points: range_points,
+                                style: line_style.clone(),
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
+                            });
+
+                            points.push(transform_data_point(
+                                x,
+                                group.y[i],
+                                &panel_scales,
+                                is_flipped,
+                            )?);
+                        }
+
+                        commands.push(DrawCommand::DrawPoint {
+                            points,
+                            style: point_style.clone(),
+                            legend: None,
+                        });
+                    }
+                    RenderStyle::CrossBar {
+                        box_style,
+                        line_style,
+                        width,
+                    } => {
+                        let half_width = *width / 2.0;
+
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let tl = transform_data_point(
+                                x - half_width,
+                                group.y_max[i],
+                                &panel_scales,
+                                is_flipped,
+                            )?;
+                            let br = transform_data_point(
+                                x + half_width,
+                                group.y_min[i],
+                                &panel_scales,
+                                is_flipped,
+                            )?;
+
+                            commands.push(DrawCommand::DrawRect {
+                                tl,
+                                br,
+                                style: box_style.clone(),
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
+                            });
+
+                            let center = vec![
+                                transform_data_point(
+                                    x - half_width,
+                                    group.y[i],
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                                transform_data_point(
+                                    x + half_width,
+                                    group.y[i],
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points: center,
+                                style: line_style.clone(),
                                 legend: None,
                             });
                         }

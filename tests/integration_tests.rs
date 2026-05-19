@@ -246,6 +246,85 @@ x,estimate,lower,upper,series
 }
 
 #[test]
+fn test_end_to_end_freqpoly_rug_and_spike() {
+    let distribution_csv = "\
+value
+1
+1.5
+2
+2.5
+3
+3.5
+4
+";
+    let freqpoly = run_gramgraph_svg(
+        r#"aes(x: value) | freqpoly(bins: 6, color: "blue", width: 2) | rug(sides: "b", color: "gray40", alpha: 0.5) | theme_minimal()"#,
+        distribution_csv,
+    );
+    assert!(freqpoly.is_ok(), "Failed: {:?}", freqpoly.err());
+    let svg = freqpoly.unwrap();
+    assert!(
+        svg.contains("polyline"),
+        "freqpoly and rug should render line primitives: {}",
+        svg
+    );
+
+    let timeseries_csv = "\
+x,y,series
+1,4,A
+2,7,A
+3,5,A
+1,2,B
+2,5,B
+3,3,B
+";
+    let spike = run_gramgraph_svg(
+        r#"aes(x: x, y: y, color: series) | spike(baseline: 0, width: 2, alpha: 0.7) | point(size: 3) | theme_minimal()"#,
+        timeseries_csv,
+    );
+    assert!(spike.is_ok(), "Failed: {:?}", spike.err());
+    let svg = spike.unwrap();
+    assert!(
+        svg.contains("\nA\n") && svg.contains("\nB\n"),
+        "grouped spikes should create legend entries: {}",
+        svg
+    );
+}
+
+#[test]
+fn test_end_to_end_pointrange_and_crossbar() {
+    let csv = "\
+x,estimate,lower,upper,series
+1,10,8,12,A
+2,14,11,17,A
+3,13,10,16,A
+";
+    let pointrange = run_gramgraph_svg(
+        r#"aes(x: x, y: estimate, ymin: lower, ymax: upper) | pointrange(size: 4, width: 2, shape: "diamond", color: "blue") | theme_minimal()"#,
+        csv,
+    );
+    assert!(pointrange.is_ok(), "Failed: {:?}", pointrange.err());
+    let svg = pointrange.unwrap();
+    assert!(
+        svg.contains("polyline") && svg.contains("polygon"),
+        "pointrange should render intervals and diamond points: {}",
+        svg
+    );
+
+    let crossbar = run_gramgraph_svg(
+        r#"aes(x: x, y: estimate, ymin: lower, ymax: upper) | crossbar(width: 0.45, linewidth: 2, color: "steelblue", alpha: 0.5) | theme_minimal()"#,
+        csv,
+    );
+    assert!(crossbar.is_ok(), "Failed: {:?}", crossbar.err());
+    let svg = crossbar.unwrap();
+    assert!(
+        svg.contains("rect") && svg.contains("polyline"),
+        "crossbar should render boxes and center lines: {}",
+        svg
+    );
+}
+
+#[test]
 fn test_end_to_end_abline_segment_and_theme_light() {
     let csv = "x,y\n1,1\n2,3\n3,4\n";
     let result = run_gramgraph_svg(

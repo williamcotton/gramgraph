@@ -59,8 +59,12 @@ fn resolve_layer_aesthetics(
         Layer::Point(p) => extract_mapped_string(&p.color),
         Layer::Bar(b) => extract_mapped_string(&b.color),
         Layer::Area(a) => extract_mapped_string(&a.color),
+        Layer::Rug(r) => extract_mapped_string(&r.color),
+        Layer::Spike(s) => extract_mapped_string(&s.color),
         Layer::LineRange(l) => extract_mapped_string(&l.color),
         Layer::ErrorBar(e) => extract_mapped_string(&e.color),
+        Layer::PointRange(p) => extract_mapped_string(&p.color),
+        Layer::CrossBar(c) => extract_mapped_string(&c.color),
         Layer::Ribbon(r) => extract_mapped_string(&r.color),
         Layer::Boxplot(b) => extract_mapped_string(&b.color),
         Layer::Violin(v) => extract_mapped_string(&v.color),
@@ -76,8 +80,13 @@ fn resolve_layer_aesthetics(
         Layer::Point(p) => extract_mapped_string_from_f64(&p.size),
         Layer::Bar(b) => extract_mapped_string_from_f64(&b.width),
         Layer::Area(_) => None,
+        Layer::Rug(r) => extract_mapped_string_from_f64(&r.width),
+        Layer::Spike(s) => extract_mapped_string_from_f64(&s.width),
         Layer::LineRange(l) => extract_mapped_string_from_f64(&l.width),
         Layer::ErrorBar(e) => extract_mapped_string_from_f64(&e.line_width),
+        Layer::PointRange(p) => extract_mapped_string_from_f64(&p.size)
+            .or_else(|| extract_mapped_string_from_f64(&p.width)),
+        Layer::CrossBar(c) => extract_mapped_string_from_f64(&c.line_width),
         Layer::Ribbon(_) => None,
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.width),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.width),
@@ -93,8 +102,11 @@ fn resolve_layer_aesthetics(
         Layer::Line(_)
         | Layer::Bar(_)
         | Layer::Area(_)
+        | Layer::Rug(_)
+        | Layer::Spike(_)
         | Layer::LineRange(_)
         | Layer::ErrorBar(_)
+        | Layer::CrossBar(_)
         | Layer::Ribbon(_)
         | Layer::Boxplot(_)
         | Layer::Violin(_)
@@ -104,6 +116,7 @@ fn resolve_layer_aesthetics(
         | Layer::VLine(_)
         | Layer::AbLine(_)
         | Layer::Segment(_) => None,
+        Layer::PointRange(p) => extract_mapped_string(&p.shape),
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.shape.clone()));
 
@@ -113,8 +126,12 @@ fn resolve_layer_aesthetics(
         Layer::Point(p) => extract_mapped_string_from_f64(&p.alpha),
         Layer::Bar(b) => extract_mapped_string_from_f64(&b.alpha),
         Layer::Area(a) => extract_mapped_string_from_f64(&a.alpha),
+        Layer::Rug(r) => extract_mapped_string_from_f64(&r.alpha),
+        Layer::Spike(s) => extract_mapped_string_from_f64(&s.alpha),
         Layer::LineRange(l) => extract_mapped_string_from_f64(&l.alpha),
         Layer::ErrorBar(e) => extract_mapped_string_from_f64(&e.alpha),
+        Layer::PointRange(p) => extract_mapped_string_from_f64(&p.alpha),
+        Layer::CrossBar(c) => extract_mapped_string_from_f64(&c.alpha),
         Layer::Ribbon(r) => extract_mapped_string_from_f64(&r.alpha),
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.alpha),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.alpha),
@@ -129,6 +146,8 @@ fn resolve_layer_aesthetics(
         Layer::Ribbon(r) => r.ymin.clone(),
         Layer::LineRange(l) => l.ymin.clone(),
         Layer::ErrorBar(e) => e.ymin.clone(),
+        Layer::PointRange(p) => p.ymin.clone(),
+        Layer::CrossBar(c) => c.ymin.clone(),
         _ => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.ymin.clone()));
@@ -137,15 +156,19 @@ fn resolve_layer_aesthetics(
         Layer::Ribbon(r) => r.ymax.clone(),
         Layer::LineRange(l) => l.ymax.clone(),
         Layer::ErrorBar(e) => e.ymax.clone(),
+        Layer::PointRange(p) => p.ymax.clone(),
+        Layer::CrossBar(c) => c.ymax.clone(),
         _ => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.ymax.clone()));
 
-    if matches!(layer, Layer::LineRange(_) | Layer::ErrorBar(_))
-        && (ymin_col.is_none() || ymax_col.is_none())
+    if matches!(
+        layer,
+        Layer::LineRange(_) | Layer::ErrorBar(_) | Layer::PointRange(_) | Layer::CrossBar(_)
+    ) && (ymin_col.is_none() || ymax_col.is_none())
     {
         anyhow::bail!(
-            "linerange() and errorbar() require ymin and ymax aesthetics (use aes(ymin: ..., ymax: ...) or layer-level ymin:/ymax:)"
+            "interval geoms require ymin and ymax aesthetics (use aes(ymin: ..., ymax: ...) or layer-level ymin:/ymax:)"
         );
     }
 
@@ -179,8 +202,12 @@ fn resolve_positional(
         Layer::Point(p) => (p.x.as_ref(), p.y.as_ref()),
         Layer::Bar(b) => (b.x.as_ref(), b.y.as_ref()),
         Layer::Area(a) => (a.x.as_ref(), a.y.as_ref()),
+        Layer::Rug(r) => (r.x.as_ref(), r.y.as_ref()),
+        Layer::Spike(s) => (s.x.as_ref(), s.y.as_ref()),
         Layer::LineRange(l) => (l.x.as_ref(), None),
         Layer::ErrorBar(e) => (e.x.as_ref(), None),
+        Layer::PointRange(p) => (p.x.as_ref(), p.y.as_ref()),
+        Layer::CrossBar(c) => (c.x.as_ref(), c.y.as_ref()),
         Layer::Ribbon(r) => (r.x.as_ref(), None), // Ribbon uses ymin/ymax primarily
         Layer::Boxplot(b) => (b.x.as_ref(), b.y.as_ref()),
         Layer::Violin(v) => (v.x.as_ref(), v.y.as_ref()),
@@ -213,6 +240,14 @@ fn resolve_positional(
     // Validation: Check if y is required but missing
     if y_col.is_none() {
         match layer {
+            Layer::Line(l)
+                if matches!(
+                    l.stat,
+                    crate::parser::ast::Stat::Bin { .. } | crate::parser::ast::Stat::Count
+                ) =>
+            {
+                // Allowed for frequency polygons and other binned line stats
+            }
             Layer::Bar(b)
                 if matches!(
                     b.stat,
@@ -226,6 +261,9 @@ fn resolve_positional(
             }
             Layer::LineRange(_) | Layer::ErrorBar(_) => {
                 // Allowed (uses ymin/ymax)
+            }
+            Layer::Rug(_) => {
+                // Allowed (x-only rugs are valid)
             }
             Layer::Density(_) => {
                 // Allowed (density computes y from x via KDE)

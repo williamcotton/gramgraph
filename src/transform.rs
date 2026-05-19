@@ -384,9 +384,14 @@ fn process_layer(
             } else if let Layer::Area(area) = &layer_spec.original_layer {
                 let baseline = area.baseline;
                 (baseline, y_val, baseline.min(y_val), baseline.max(y_val))
+            } else if let Layer::Spike(spike) = &layer_spec.original_layer {
+                let baseline = spike.baseline;
+                (baseline, y_val, baseline.min(y_val), baseline.max(y_val))
             } else if matches!(layer_spec.original_layer, Layer::Ribbon(_))
                 || matches!(layer_spec.original_layer, Layer::LineRange(_))
                 || matches!(layer_spec.original_layer, Layer::ErrorBar(_))
+                || matches!(layer_spec.original_layer, Layer::PointRange(_))
+                || matches!(layer_spec.original_layer, Layer::CrossBar(_))
                 || matches!(layer_spec.original_layer, Layer::Boxplot(_))
                 || matches!(layer_spec.original_layer, Layer::Violin(_))
             {
@@ -665,6 +670,20 @@ fn build_style(
             color: pick_color(&a.color),
             alpha: pick_alpha(&a.alpha),
         }),
+        Layer::Rug(r) => RenderStyle::Rug {
+            style: LineStyle {
+                color: pick_color(&r.color),
+                width: pick_size(&r.width),
+                alpha: pick_alpha(&r.alpha),
+            },
+            sides: r.sides.clone(),
+            length: r.length,
+        },
+        Layer::Spike(s) => RenderStyle::Spike(LineStyle {
+            color: pick_color(&s.color),
+            width: pick_size(&s.width),
+            alpha: pick_alpha(&s.alpha),
+        }),
         Layer::LineRange(l) => RenderStyle::LineRange(LineStyle {
             color: pick_color(&l.color),
             width: pick_size(&l.width),
@@ -677,6 +696,39 @@ fn build_style(
                 alpha: pick_alpha(&e.alpha),
             },
             width: e.width,
+        },
+        Layer::PointRange(p) => RenderStyle::PointRange {
+            line_style: LineStyle {
+                color: pick_color(&p.color),
+                width: pick_size(&p.width),
+                alpha: pick_alpha(&p.alpha),
+            },
+            point_style: PointStyle {
+                color: pick_color(&p.color),
+                size: pick_size(&p.size),
+                shape: if aes.shape.is_some() && shape_map.contains_key(&group_key) {
+                    shape_map.get(&group_key).cloned()
+                } else {
+                    match &p.shape {
+                        Some(crate::parser::ast::AestheticValue::Fixed(s)) => Some(s.clone()),
+                        _ => None,
+                    }
+                },
+                alpha: pick_alpha(&p.alpha),
+            },
+        },
+        Layer::CrossBar(c) => RenderStyle::CrossBar {
+            box_style: BarStyle {
+                color: pick_color(&c.color),
+                alpha: pick_alpha(&c.alpha).or(Some(0.45)),
+                width: None,
+            },
+            line_style: LineStyle {
+                color: pick_color(&c.color),
+                width: pick_size(&c.line_width),
+                alpha: pick_alpha(&c.alpha).or(Some(1.0)),
+            },
+            width: c.width,
         },
         Layer::Ribbon(r) => RenderStyle::Ribbon(RibbonStyle {
             color: pick_color(&r.color),
@@ -1607,6 +1659,8 @@ fn compute_bin_stat(
     groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
     bin_count: usize,
 ) -> Result<HashMap<String, StatData>> {
+    let bin_count = bin_count.max(1);
+
     // 1. Collect all X values to determine range
     let mut all_values = Vec::new();
     for (x_strs, _, _, _) in groups.values() {
@@ -1639,27 +1693,24 @@ fn compute_bin_stat(
     let mut new_groups = HashMap::new();
 
     for (key, (x_strs, _, _, _)) in groups {
-        let mut bins: HashMap<isize, usize> = HashMap::new();
+        let mut bins: HashMap<usize, usize> = HashMap::new();
 
         for s in x_strs {
             // We already checked they are numeric
             let v = s.parse::<f64>().unwrap();
-            let bin_idx = ((v - min) / width).floor() as isize;
+            let bin_idx = ((v - min) / width).floor() as usize;
+            let bin_idx = bin_idx.min(bin_count - 1);
             *bins.entry(bin_idx).or_default() += 1;
         }
-
-        // Convert bins back to (X, Y)
-        let mut bin_indices: Vec<isize> = bins.keys().cloned().collect();
-        bin_indices.sort();
 
         let mut new_x = Vec::new();
         let mut new_y = Vec::new();
         let mut new_ymin = Vec::new();
         let mut new_ymax = Vec::new();
 
-        for idx in bin_indices {
+        for idx in 0..bin_count {
             let center = min + (idx as f64 * width) + (width / 2.0);
-            let count = bins[&idx] as f64;
+            let count = bins.get(&idx).copied().unwrap_or(0) as f64;
             new_x.push(format!("{:.2}", center));
             new_y.push(count);
             new_ymin.push(0.0);

@@ -47,6 +47,14 @@ cat examples/regional_sales.csv | cargo run -- 'aes(x: time, y: sales, color: pr
 echo "Generating histogram.svg..."
 cat examples/distribution.csv | cargo run -- 'aes(x: value) | histogram(bins: 25) | labs(title: "Distribution Analysis", x: "Value", y: "Count") | theme_minimal()' --format svg > examples/histogram.svg
 
+# Frequency Polygon
+echo "Generating freqpoly.svg..."
+cat examples/distribution.csv | cargo run -- 'aes(x: value) | freqpoly(bins: 25, color: "steelblue", width: 2) | labs(title: "Frequency Polygon", x: "Value", y: "Count") | theme_minimal()' --format svg > examples/freqpoly.svg
+
+# Rug Plot
+echo "Generating rug.svg..."
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.35, color: "steelblue", size: 4) | rug(sides: "bl", color: "gray35", alpha: 0.55, length: 0.04) | labs(title: "Scatter Plot with Rug Marks", x: "Height (cm)", y: "Weight (kg)") | theme_minimal()' --format svg > examples/rug.svg
+
 # Horizontal Bar Chart (Coord Flip)
 echo "Generating coord_flip.svg..."
 cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | coord_flip() | labs(title: "Financials (Horizontal)", subtitle: "Q1-Q4 Performance") | theme_minimal()' --format svg > examples/coord_flip.svg
@@ -58,6 +66,10 @@ cat examples/ribbon_data.csv | cargo run -- 'aes(x: x, y: y, ymin: lower, ymax: 
 # Area Chart
 echo "Generating area.svg..."
 cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | area(alpha: 0.25, baseline: 0) | line(width: 2) | labs(title: "Area Chart", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/area.svg
+
+# Spike Plot
+echo "Generating spike.svg..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | spike(baseline: 0, width: 1.5, alpha: 0.65) | point(size: 3) | labs(title: "Spike Plot", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/spike.svg
 
 # Step Line Chart
 echo "Generating step.svg..."
@@ -78,6 +90,14 @@ cat examples/intervals.csv | cargo run -- 'aes(x: time, y: estimate, ymin: lower
 # Error Bars
 echo "Generating errorbar.svg..."
 cat examples/intervals.csv | cargo run -- 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | errorbar(width: 0.18, linewidth: 1.5, alpha: 0.75) | point(size: 4) | labs(title: "Error Bars", x: "Time", y: "Estimate") | theme_minimal()' --format svg > examples/errorbar.svg
+
+# Point Range
+echo "Generating pointrange.svg..."
+cat examples/intervals.csv | cargo run -- 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | pointrange(size: 4, width: 1.5, shape: "diamond", alpha: 0.85) | labs(title: "Point Range Intervals", x: "Time", y: "Estimate") | facet_wrap(by: series, ncol: 2) | theme_minimal()' --format svg > examples/pointrange.svg
+
+# Crossbar
+echo "Generating crossbar.svg..."
+cat examples/intervals.csv | cargo run -- 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | crossbar(width: 0.45, linewidth: 2, alpha: 0.5) | labs(title: "Crossbar Intervals", x: "Time", y: "Estimate") | facet_wrap(by: series, ncol: 2) | theme_minimal()' --format svg > examples/crossbar.svg
 
 # Smoothing (Linear Regression)
 echo "Generating smooth.svg..."

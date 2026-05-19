@@ -131,8 +131,26 @@ pub enum RenderStyle {
     Point(PointStyle),
     Bar(BarStyle),
     Area(RibbonStyle),
+    Rug {
+        style: LineStyle,
+        sides: String,
+        length: f64,
+    },
+    Spike(LineStyle),
     LineRange(LineStyle),
-    ErrorBar { style: LineStyle, width: f64 },
+    ErrorBar {
+        style: LineStyle,
+        width: f64,
+    },
+    PointRange {
+        line_style: LineStyle,
+        point_style: PointStyle,
+    },
+    CrossBar {
+        box_style: BarStyle,
+        line_style: LineStyle,
+        width: f64,
+    },
     Ribbon(RibbonStyle),
     Boxplot(BoxplotStyle),
     Violin(ViolinStyle),

@@ -1,9 +1,10 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
 use super::ast::{
-    AbLineLayer, AestheticValue, AreaLayer, BarLayer, BarPosition, BoxplotLayer, DensityLayer,
-    ErrorBarLayer, HLineLayer, HeatmapLayer, Layer, LineInterpolation, LineLayer, LineRangeLayer,
-    PointLayer, RibbonLayer, SegmentLayer, VLineLayer, ViolinLayer,
+    AbLineLayer, AestheticValue, AreaLayer, BarLayer, BarPosition, BoxplotLayer, CrossBarLayer,
+    DensityLayer, ErrorBarLayer, HLineLayer, HeatmapLayer, Layer, LineInterpolation, LineLayer,
+    LineRangeLayer, PointLayer, PointRangeLayer, RibbonLayer, RugLayer, SegmentLayer, SpikeLayer,
+    VLineLayer, ViolinLayer,
 };
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
@@ -219,6 +220,129 @@ pub fn parse_area(input: &str) -> IResult<&str, Layer> {
     Ok((input, Layer::Area(layer)))
 }
 
+/// Parse rug marks along plot margins.
+/// Format: rug(sides: "b", length: 0.03, color: "gray", width: 1, ...)
+pub fn parse_rug(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("rug"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("sides:")), ws(string_literal)), |s| {
+                ("sides", ArgValue::ColorFixed(s))
+            }),
+            map(preceded(ws(tag("length:")), ws(number_literal)), |l| {
+                ("length", ArgValue::NumericFixed(l))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = RugLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("sides", ArgValue::ColorFixed(sides)) => layer.sides = sides,
+            ("length", ArgValue::NumericFixed(length)) => layer.length = length,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::Rug(layer)))
+}
+
+/// Parse spike stems from a baseline to y.
+pub fn parse_spike(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("spike"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("baseline:")), ws(number_literal)), |b| {
+                ("baseline", ArgValue::NumericFixed(b))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = SpikeLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("baseline", ArgValue::NumericFixed(b)) => layer.baseline = b,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::Spike(layer)))
+}
+
 /// Parse a line range geometry (vertical interval from ymin to ymax at x).
 pub fn parse_linerange(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(tag("linerange"))(input)?;
@@ -343,6 +467,156 @@ pub fn parse_errorbar(input: &str) -> IResult<&str, Layer> {
     }
 
     Ok((input, Layer::ErrorBar(layer)))
+}
+
+/// Parse a point range geometry (point plus vertical interval).
+pub fn parse_pointrange(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("pointrange"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("ymin:")), ws(identifier)), |ymin| {
+                ("ymin", ArgValue::ColumnName(ymin))
+            }),
+            map(preceded(ws(tag("ymax:")), ws(identifier)), |ymax| {
+                ("ymax", ArgValue::ColumnName(ymax))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("size:")), ws(number_literal)), |s| {
+                ("size", ArgValue::NumericFixed(s))
+            }),
+            map(preceded(ws(tag("size:")), ws(identifier)), |s| {
+                ("size", ArgValue::NumericMapped(s))
+            }),
+            map(preceded(ws(tag("shape:")), ws(string_literal)), |sh| {
+                ("shape", ArgValue::ColorFixed(sh))
+            }),
+            map(preceded(ws(tag("shape:")), ws(identifier)), |sh| {
+                ("shape", ArgValue::ColorMapped(sh))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = PointRangeLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("ymin", ArgValue::ColumnName(ymin)) => layer.ymin = Some(ymin),
+            ("ymax", ArgValue::ColumnName(ymax)) => layer.ymax = Some(ymax),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("size", ArgValue::NumericFixed(s)) => layer.size = Some(AestheticValue::Fixed(s)),
+            ("size", ArgValue::NumericMapped(s)) => layer.size = Some(AestheticValue::Mapped(s)),
+            ("shape", ArgValue::ColorFixed(sh)) => layer.shape = Some(AestheticValue::Fixed(sh)),
+            ("shape", ArgValue::ColorMapped(sh)) => layer.shape = Some(AestheticValue::Mapped(sh)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::PointRange(layer)))
+}
+
+/// Parse a crossbar geometry (interval box plus center line).
+pub fn parse_crossbar(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("crossbar"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("ymin:")), ws(identifier)), |ymin| {
+                ("ymin", ArgValue::ColumnName(ymin))
+            }),
+            map(preceded(ws(tag("ymax:")), ws(identifier)), |ymax| {
+                ("ymax", ArgValue::ColumnName(ymax))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("linewidth:")), ws(number_literal)), |w| {
+                ("linewidth", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("linewidth:")), ws(identifier)), |w| {
+                ("linewidth", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = CrossBarLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("ymin", ArgValue::ColumnName(ymin)) => layer.ymin = Some(ymin),
+            ("ymax", ArgValue::ColumnName(ymax)) => layer.ymax = Some(ymax),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = w,
+            ("linewidth", ArgValue::NumericFixed(w)) => {
+                layer.line_width = Some(AestheticValue::Fixed(w))
+            }
+            ("linewidth", ArgValue::NumericMapped(w)) => {
+                layer.line_width = Some(AestheticValue::Mapped(w))
+            }
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::CrossBar(layer)))
 }
 
 /// Parse a horizontal reference line.
@@ -752,6 +1026,64 @@ pub fn parse_histogram(input: &str) -> IResult<&str, Layer> {
     Ok((input, Layer::Bar(layer)))
 }
 
+/// Parse a frequency polygon (binned counts drawn as a line).
+pub fn parse_freqpoly(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("freqpoly"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("bins:")), ws(number_literal)), |b| {
+                ("bins", ArgValue::NumericFixed(b))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = LineLayer::default();
+    let mut bins = 30;
+
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("bins", ArgValue::NumericFixed(b)) => bins = b.max(1.0) as usize,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    layer.stat = crate::parser::ast::Stat::Bin { bins };
+    Ok((input, Layer::Line(layer)))
+}
+
 /// Parse a smooth geometry (sugar for line(stat: "smooth"))
 /// Format: smooth(), smooth(method: "loess", span: 0.75), or smooth(color: "red")
 pub fn parse_smooth(input: &str) -> IResult<&str, Layer> {
@@ -1094,24 +1426,33 @@ pub fn parse_heatmap(input: &str) -> IResult<&str, Layer> {
 /// Parse any geometry layer
 pub fn parse_geom(input: &str) -> IResult<&str, Layer> {
     alt((
-        parse_line,
-        parse_step,
-        parse_point,
-        parse_bar,
-        parse_area,
-        parse_linerange,
-        parse_errorbar,
-        parse_hline,
-        parse_vline,
-        parse_abline,
-        parse_segment,
-        parse_ribbon,
-        parse_histogram,
-        parse_smooth,
-        parse_boxplot,
-        parse_violin,
-        parse_density,
-        parse_heatmap,
+        alt((
+            parse_line,
+            parse_step,
+            parse_point,
+            parse_bar,
+            parse_area,
+            parse_rug,
+            parse_spike,
+            parse_linerange,
+            parse_errorbar,
+            parse_pointrange,
+            parse_crossbar,
+            parse_hline,
+        )),
+        alt((
+            parse_vline,
+            parse_abline,
+            parse_segment,
+            parse_ribbon,
+            parse_histogram,
+            parse_freqpoly,
+            parse_smooth,
+            parse_boxplot,
+            parse_violin,
+            parse_density,
+            parse_heatmap,
+        )),
     ))(input)
 }
 
@@ -1176,6 +1517,68 @@ mod tests {
                 assert_eq!(a.baseline, -5.0);
             }
             _ => panic!("Expected Area layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_rug_spike_pointrange_crossbar_and_freqpoly() {
+        let (_, rug) = parse_rug(r#"rug(sides: "bl", length: 0.04, color: "gray40", width: 1)"#)
+            .expect("rug should parse");
+        match rug {
+            Layer::Rug(r) => {
+                assert_eq!(r.sides, "bl");
+                assert_eq!(r.length, 0.04);
+                assert_eq!(r.color, Some(AestheticValue::Fixed("gray40".to_string())));
+            }
+            _ => panic!("Expected Rug layer"),
+        }
+
+        let (_, spike) = parse_spike(r#"spike(baseline: -1, color: group, width: 2, alpha: 0.5)"#)
+            .expect("spike should parse");
+        match spike {
+            Layer::Spike(s) => {
+                assert_eq!(s.baseline, -1.0);
+                assert_eq!(s.color, Some(AestheticValue::Mapped("group".to_string())));
+                assert_eq!(s.width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected Spike layer"),
+        }
+
+        let (_, pointrange) =
+            parse_pointrange(r#"pointrange(ymin: lower, ymax: upper, size: 4, shape: "diamond")"#)
+                .expect("pointrange should parse");
+        match pointrange {
+            Layer::PointRange(p) => {
+                assert_eq!(p.ymin, Some("lower".to_string()));
+                assert_eq!(p.ymax, Some("upper".to_string()));
+                assert_eq!(p.size, Some(AestheticValue::Fixed(4.0)));
+                assert_eq!(p.shape, Some(AestheticValue::Fixed("diamond".to_string())));
+            }
+            _ => panic!("Expected PointRange layer"),
+        }
+
+        let (_, crossbar) =
+            parse_crossbar(r#"crossbar(ymin: lower, ymax: upper, width: 0.4, linewidth: 2)"#)
+                .expect("crossbar should parse");
+        match crossbar {
+            Layer::CrossBar(c) => {
+                assert_eq!(c.ymin, Some("lower".to_string()));
+                assert_eq!(c.ymax, Some("upper".to_string()));
+                assert_eq!(c.width, 0.4);
+                assert_eq!(c.line_width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected CrossBar layer"),
+        }
+
+        let (_, freqpoly) = parse_freqpoly(r#"freqpoly(bins: 12, color: "blue", width: 2)"#)
+            .expect("freqpoly should parse");
+        match freqpoly {
+            Layer::Line(l) => {
+                assert!(matches!(l.stat, crate::parser::ast::Stat::Bin { bins: 12 }));
+                assert_eq!(l.color, Some(AestheticValue::Fixed("blue".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected Line layer"),
         }
     }
 

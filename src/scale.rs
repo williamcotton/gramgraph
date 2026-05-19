@@ -356,6 +356,7 @@ fn calculate_min_max_x(panel: &crate::ir::PanelData) -> MinMax {
 
             let x_padding = match &group.style {
                 crate::ir::RenderStyle::ErrorBar { width, .. } => width / 2.0,
+                crate::ir::RenderStyle::CrossBar { width, .. } => width / 2.0,
                 _ => 0.0,
             };
 

@@ -94,6 +94,22 @@ cat examples/distribution.csv | gramgraph 'aes(x: value) | histogram(bins: 25) |
 
 ![Histogram](examples/histogram.svg)
 
+### Frequency Polygon
+
+```bash
+cat examples/distribution.csv | gramgraph 'aes(x: value) | freqpoly(bins: 25, color: "steelblue", width: 2) | labs(title: "Frequency Polygon", x: "Value", y: "Count") | theme_minimal()' --format svg > examples/freqpoly.svg
+```
+
+![Frequency Polygon](examples/freqpoly.svg)
+
+### Rug Plot
+
+```bash
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.35, color: "steelblue", size: 4) | rug(sides: "bl", color: "gray35", alpha: 0.55, length: 0.04) | labs(title: "Scatter Plot with Rug Marks", x: "Height (cm)", y: "Weight (kg)") | theme_minimal()' --format svg > examples/rug.svg
+```
+
+![Rug Plot](examples/rug.svg)
+
 ### Horizontal Bar Chart (Coord Flip)
 
 ```bash
@@ -117,6 +133,14 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 ```
 
 ![Area Chart](examples/area.svg)
+
+### Spike Plot
+
+```bash
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | spike(baseline: 0, width: 1.5, alpha: 0.65) | point(size: 3) | labs(title: "Spike Plot", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/spike.svg
+```
+
+![Spike Plot](examples/spike.svg)
 
 ### Step Line Chart
 
@@ -157,6 +181,22 @@ cat examples/intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, y
 ```
 
 ![Error Bars](examples/errorbar.svg)
+
+### Point Range
+
+```bash
+cat examples/intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | pointrange(size: 4, width: 1.5, shape: "diamond", alpha: 0.85) | labs(title: "Point Range Intervals", x: "Time", y: "Estimate") | facet_wrap(by: series, ncol: 2) | theme_minimal()' --format svg > examples/pointrange.svg
+```
+
+![Point Range](examples/pointrange.svg)
+
+### Crossbar
+
+```bash
+cat examples/intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | crossbar(width: 0.45, linewidth: 2, alpha: 0.5) | labs(title: "Crossbar Intervals", x: "Time", y: "Estimate") | facet_wrap(by: series, ncol: 2) | theme_minimal()' --format svg > examples/crossbar.svg
+```
+
+![Crossbar](examples/crossbar.svg)
 
 ### Smoothing (Linear Regression)
 

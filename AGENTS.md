@@ -17,8 +17,8 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 ### ✅ Implemented
 
-- **Core Geometries**: `line()`, `step()`, `point()`, `bar()`, `area()`, `ribbon()`, `linerange()`, `errorbar()`, `hline()`, `vline()`, `abline()`, `segment()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
-- **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression and LOESS), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
+- **Core Geometries**: `line()`, `step()`, `point()`, `bar()`, `area()`, `rug()`, `spike()`, `ribbon()`, `linerange()`, `errorbar()`, `pointrange()`, `crossbar()`, `hline()`, `vline()`, `abline()`, `segment()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
+- **Statistical Geoms**: `histogram(bins: n)`, `freqpoly(bins: n)`, `smooth()` (linear regression and LOESS), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
 - **Data-Driven Aesthetics**: Automatic grouping by color, size, rendered point shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
 - **Layer Composition**: Multiple geometries on shared coordinate space
@@ -87,6 +87,16 @@ cat data.csv | gramgraph 'aes(x: time, y: temperature) | line() | theme_minimal(
 cat data.csv | gramgraph 'aes(x: value) | histogram(bins: 20) | labs(title: "Distribution") | theme_minimal()' --width 800 --height 600 --format svg
 ```
 
+**Frequency Polygon:**
+```bash
+cat data.csv | gramgraph 'aes(x: value) | freqpoly(bins: 25, color: "steelblue", width: 2) | theme_minimal()'
+```
+
+**Scatter Plot with Rug Marks:**
+```bash
+cat demographics.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.35) | rug(sides: "bl", length: 0.04) | theme_minimal()'
+```
+
 **Horizontal Bar Chart (Coord Flip):**
 ```bash
 cat data.csv | gramgraph 'aes(x: category, y: value) | bar() | coord_flip() | labs(x: "Category", y: "Value") | theme_minimal()'
@@ -147,6 +157,11 @@ cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribb
 cat data.csv | gramgraph 'aes(x: time, y: value, color: series) | area(alpha: 0.25, baseline: 0) | line() | theme_minimal()'
 ```
 
+**Spike Plot:**
+```bash
+cat data.csv | gramgraph 'aes(x: time, y: value, color: series) | spike(baseline: 0, width: 1.5, alpha: 0.65) | point(size: 3) | theme_minimal()'
+```
+
 **Step Line Chart:**
 ```bash
 cat data.csv | gramgraph 'aes(x: time, y: value) | step(direction: "mid", width: 2) | point() | theme_minimal()'
@@ -166,6 +181,12 @@ cat data.csv | gramgraph 'aes(x: height, y: weight) | point() | abline(slope: 1,
 ```bash
 cat intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | linerange(width: 2) | theme_minimal()'
 cat intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | errorbar(width: 0.2, linewidth: 1.5) | theme_minimal()'
+```
+
+**Point Range and Crossbar Intervals:**
+```bash
+cat intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | pointrange(size: 4, width: 1.5) | facet_wrap(by: series) | theme_minimal()'
+cat intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | crossbar(width: 0.45, linewidth: 2, alpha: 0.5) | facet_wrap(by: series) | theme_minimal()'
 ```
 
 **Reverse Scale:**
@@ -193,7 +214,7 @@ cat data.csv | gramgraph 'aes(x: time, y: value) | line(color: $color, width: $w
 #### `aes(...)`
 Defines global aesthetic mappings.
 - **Required**: `x: col`.
-- **Optional**: `y: col` (required for most geoms except histogram), `color: col`, `size: col`, `shape: col`, `alpha: col`, `ymin: col`, `ymax: col`, `fill: col` (heatmap value).
+- **Optional**: `y: col` (required for most geoms except histogram, freqpoly, density, and x-only rug marks), `color: col`, `size: col`, `shape: col`, `alpha: col`, `ymin: col`, `ymax: col`, `fill: col` (heatmap value).
 
 #### Geometries
 - `line(...)`: Line chart.
@@ -203,14 +224,19 @@ Defines global aesthetic mappings.
 - `boxplot(...)`: Box and whisker plot with automatic outlier detection.
 - `violin(...)`: Violin plot using Kernel Density Estimation (KDE). Supports `draw_quantiles: [0.25, 0.5, 0.75]`.
 - `area(...)`: Filled area from `y` to a baseline. Supports `alpha: n`, `color: "..."`, and `baseline: n` (default 0).
+- `rug(...)`: Rug marks along plot margins. Supports `sides: "b|t|l|r"` combinations such as `"b"` or `"bl"`, `length` as a fraction of the axis span, plus `color`, `width`, and `alpha`.
+- `spike(...)`: Vertical stems from `baseline` (default 0) to `y` at each `x`. Supports `color`, `width`, and `alpha`.
 - `ribbon(...)`: Filled area between `ymin` and `ymax`.
 - `linerange(...)`: Vertical interval from `ymin` to `ymax` at each `x`. Supports `color`, `width`, and `alpha`.
 - `errorbar(...)`: Vertical interval with caps from `ymin` to `ymax` at each `x`. Supports `color`, `width` (cap width), `linewidth` (stroke width), and `alpha`.
+- `pointrange(...)`: Point plus vertical interval from `ymin` to `ymax` at each `x`. Supports `color`, `width` (interval stroke), `size`, `shape`, and `alpha`.
+- `crossbar(...)`: Interval box from `ymin` to `ymax` with a center line at `y`. Supports `color`, `width` (box width), `linewidth` (center line stroke), and `alpha`.
 - `hline(...)`: Horizontal reference line. Uses `yintercept: n` (default 0); supports `color`, `width`, `alpha`, and `label`. Does not require `aes(...)` when used alone. Unlabeled reference lines do not create legend entries.
 - `vline(...)`: Vertical reference line. Uses `xintercept: n` (default 0); supports `color`, `width`, `alpha`, and `label`. Does not require `aes(...)` when used alone. Unlabeled reference lines do not create legend entries.
 - `abline(...)`: Diagonal reference line using `y = slope * x + intercept`. Supports `slope`, `intercept`, `color`, `width`, `alpha`, and `label`. Unlabeled reference lines do not create legend entries.
 - `segment(...)`: Fixed segment from `(x, y)` to `(xend, yend)`. Supports `color`, `width`, `alpha`, and `label`. Unlabeled segments do not create legend entries.
 - `histogram(...)`: Binning bar chart. Supports `bins: n`.
+- `freqpoly(...)`: Binned counts drawn as a continuous line. Supports `bins: n`, `color`, `width`, and `alpha`.
 - `density(...)`: Density curve using Gaussian KDE. Supports `alpha: n`, `color: "..."`, `bw: n` (bandwidth).
 - `heatmap(...)`: 2D tile plot with viridis color mapping. Supports `bins: n` (2D binning), `fill: col` (value column), `alpha: n`.
 - `smooth(...)`: Smoothing line. Defaults to linear regression. Supports `method: "lm" | "loess"`, `span: n` for LOESS neighborhood size (default 0.75), `samples: n` for generated LOESS points (default 80), plus line styling such as `color`, `width`, and `alpha`.
