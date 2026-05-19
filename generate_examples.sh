@@ -7,35 +7,35 @@ echo "Generating example images..."
 
 # Grouped Line Chart
 echo "Generating line_grouped.svg..."
-cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | point()' --format svg > examples/line_grouped.svg
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | point() | theme_minimal()' --format svg > examples/line_grouped.svg
 
 # Datetime Scale
 echo "Generating weather_datetime.svg..."
-cat examples/weather_hourly.csv | cargo run -- 'aes(x: time, y: temp) | line() | point() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")' --format svg > examples/weather_datetime.svg
+cat examples/weather_hourly.csv | cargo run -- 'aes(x: time, y: temp) | line() | point() | theme_minimal() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")' --format svg > examples/weather_datetime.svg
 
 # Scatter Plot
 echo "Generating scatter.svg..."
-cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5)' --format svg > examples/scatter.svg
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | theme_minimal()' --format svg > examples/scatter.svg
 
 # Dodged Bar Chart
 echo "Generating bar_dodge.svg..."
-cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge")' --format svg > examples/bar_dodge.svg
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | theme_minimal()' --format svg > examples/bar_dodge.svg
 
 # Stacked Bar Chart
 echo "Generating bar_stack.svg..."
-cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' --format svg > examples/bar_stack.svg
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "stack") | theme_minimal()' --format svg > examples/bar_stack.svg
 
 # Triple Dodged Bar Chart
 echo "Generating bar_triple_dodge.svg..."
-cat examples/financials_triple.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge")' --format svg > examples/bar_triple_dodge.svg
+cat examples/financials_triple.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | theme_minimal()' --format svg > examples/bar_triple_dodge.svg
 
 # Triple Stacked Bar Chart
 echo "Generating bar_triple_stack.svg..."
-cat examples/financials_triple.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' --format svg > examples/bar_triple_stack.svg
+cat examples/financials_triple.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "stack") | theme_minimal()' --format svg > examples/bar_triple_stack.svg
 
 # Faceted Plot with Color Grouping
 echo "Generating facets.svg..."
-cat examples/regional_sales.csv | cargo run -- 'aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region)' --format svg > examples/facets.svg
+cat examples/regional_sales.csv | cargo run -- 'aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region) | theme_minimal()' --format svg > examples/facets.svg
 
 # --- New Examples ---
 
@@ -45,7 +45,7 @@ cat examples/distribution.csv | cargo run -- 'aes(x: value) | histogram(bins: 25
 
 # Horizontal Bar Chart (Coord Flip)
 echo "Generating coord_flip.svg..."
-cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | coord_flip() | labs(title: "Financials (Horizontal)", subtitle: "Q1-Q4 Performance")' --format svg > examples/coord_flip.svg
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | coord_flip() | labs(title: "Financials (Horizontal)", subtitle: "Q1-Q4 Performance") | theme_minimal()' --format svg > examples/coord_flip.svg
 
 # Ribbon Chart
 echo "Generating ribbon.svg..."
@@ -53,7 +53,7 @@ cat examples/ribbon_data.csv | cargo run -- 'aes(x: x, y: y, ymin: lower, ymax: 
 
 # Smoothing (Linear Regression)
 echo "Generating smooth.svg..."
-cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit")' --format svg > examples/smooth.svg
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit") | theme_minimal()' --format svg > examples/smooth.svg
 
 # Smoothing (LOESS)
 echo "Generating smooth_loess.svg..."
@@ -61,11 +61,11 @@ cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(
 
 # Reverse Scale (Note: scales come LAST in parsing order)
 echo "Generating scale_reverse.svg..."
-cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Reverse Time Axis") | scale_x_reverse()' --format svg > examples/scale_reverse.svg
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Reverse Time Axis") | theme_minimal() | scale_x_reverse()' --format svg > examples/scale_reverse.svg
 
 # Boxplot
 echo "Generating boxplot.svg..."
-cat examples/demographics.csv | cargo run -- 'aes(x: gender, y: height, color: gender) | boxplot()' --format svg > examples/boxplot.svg
+cat examples/demographics.csv | cargo run -- 'aes(x: gender, y: height, color: gender) | boxplot() | theme_minimal()' --format svg > examples/boxplot.svg
 
 # Violin Plot
 echo "Generating violin.svg..."
@@ -91,19 +91,19 @@ cat examples/measurements.csv | cargo run -- 'aes(x: elapsed, y: temperature) | 
 
 # Custom Theme with Element Functions
 echo "Generating theme_custom.svg..."
-cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Custom Styled Chart") | theme(plot_title: element_text(size: 24, color: "#2E86AB"), panel_grid_minor: element_blank(), axis_line: element_blank())' --format svg > examples/theme_custom.svg
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Custom Styled Chart") | theme_minimal() | theme(plot_title: element_text(size: 24, color: "#2E86AB"), panel_grid_minor: element_blank(), axis_line: element_blank())' --format svg > examples/theme_custom.svg
 
 # Dark Theme Example
 echo "Generating theme_dark.svg..."
-cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Dark Theme Example") | theme_dark()' --format svg > examples/theme_dark.svg
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Dark Theme Example") | theme_minimal() | theme_dark()' --format svg > examples/theme_dark.svg
 
 # Classic Theme Example
 echo "Generating theme_classic.svg..."
-cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_classic()' --format svg > examples/theme_classic.svg
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_minimal() | theme_classic()' --format svg > examples/theme_classic.svg
 
 # Custom Legend Configuration
 echo "Generating legend_custom.svg..."
-cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line(width: 3) | point(size: 4) | labs(title: "Custom Legend") | theme(legend_position: "bottom", legend_text: element_text(size: 14, color: "#222222"), legend_background: element_rect(fill: "#F7F7F7", color: "#333333", width: 1), legend_margin: 6, legend_key_size: 22)' --format svg > examples/legend_custom.svg
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line(width: 3) | point(size: 4) | labs(title: "Custom Legend") | theme_minimal() | theme(legend_position: "bottom", legend_text: element_text(size: 14, color: "#222222"), legend_background: element_rect(fill: "#F7F7F7", color: "#333333", width: 1), legend_margin: 6, legend_key_size: 22)' --format svg > examples/legend_custom.svg
 
 # Merged Themes (theme_minimal + customization)
 echo "Generating theme_merged.svg..."
@@ -113,11 +113,11 @@ cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: ty
 
 # Bold Axis Text
 echo "Generating axis_bold.svg..."
-cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Bold Axis Labels") | theme(axis_text: element_text(face: "bold", size: 14))' --format svg > examples/axis_bold.svg
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Bold Axis Labels") | theme_minimal() | theme(axis_text: element_text(face: "bold", size: 14))' --format svg > examples/axis_bold.svg
 
 # Rotated X-Axis Labels (90 degrees)
 echo "Generating axis_rotated.svg..."
-cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Rotated X-Axis Labels") | theme(axis_text: element_text(angle: 90, size: 12))' --format svg > examples/axis_rotated.svg
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Rotated X-Axis Labels") | theme_minimal() | theme(axis_text: element_text(angle: 90, size: 12))' --format svg > examples/axis_rotated.svg
 
 # Hidden Ticks (element_blank)
 echo "Generating axis_no_ticks.svg..."
@@ -125,16 +125,16 @@ cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series
 
 # Combined: Bold, Rotated, Custom Color
 echo "Generating axis_styled.svg..."
-cat examples/regional_sales.csv | cargo run -- 'aes(x: region, y: sales, color: product) | bar(position: "dodge") | labs(title: "Fully Styled Axes") | theme(axis_text: element_text(face: "bold", angle: 90, color: "#2E86AB", size: 11), axis_line: element_line(color: "#333333", width: 2))' --format svg > examples/axis_styled.svg
+cat examples/regional_sales.csv | cargo run -- 'aes(x: region, y: sales, color: product) | bar(position: "dodge") | labs(title: "Fully Styled Axes") | theme_minimal() | theme(axis_text: element_text(face: "bold", angle: 90, color: "#2E86AB", size: 11), axis_line: element_line(color: "#333333", width: 2))' --format svg > examples/axis_styled.svg
 
 # --- Variable Injection Examples ---
 
 # Variable injection in aesthetics
 echo "Generating variable_aes.svg..."
-cat examples/timeseries.csv | cargo run -- 'aes(x: $xcol, y: $ycol, color: series) | line() | labs(title: $title)' -D xcol=time -D ycol=value -D title='"Variable Injection Example"' --format svg > examples/variable_aes.svg
+cat examples/timeseries.csv | cargo run -- 'aes(x: $xcol, y: $ycol, color: series) | line() | labs(title: $title) | theme_minimal()' -D xcol=time -D ycol=value -D title='"Variable Injection Example"' --format svg > examples/variable_aes.svg
 
 # Variable injection in geometry styling
 echo "Generating variable_geom.svg..."
-cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(color: $color, size: $size) | labs(title: "Styled with Variables")' -D color='"blue"' -D size=8 --format svg > examples/variable_geom.svg
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(color: $color, size: $size) | labs(title: "Styled with Variables") | theme_minimal()' -D color='"blue"' -D size=8 --format svg > examples/variable_geom.svg
 
 echo "Done! All examples generated in the examples/ directory."

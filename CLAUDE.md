@@ -75,9 +75,11 @@ aes(x: column, y: column) | geom() | labs() | theme() | scales()
 
 ### Examples
 
+Generated example commands should use `theme_minimal()` as the baseline theme. Custom preset or element themes can be layered after it with another theme command.
+
 **Simple line chart:**
 ```bash
-cat data.csv | gramgraph 'aes(x: time, y: temperature) | line()' --width 1024 --height 768 --format svg
+cat data.csv | gramgraph 'aes(x: time, y: temperature) | line() | theme_minimal()' --width 1024 --height 768 --format svg
 ```
 
 **Histogram with Theme:**
@@ -87,27 +89,27 @@ cat data.csv | gramgraph 'aes(x: value) | histogram(bins: 20) | labs(title: "Dis
 
 **Horizontal Bar Chart (Coord Flip):**
 ```bash
-cat data.csv | gramgraph 'aes(x: category, y: value) | bar() | coord_flip() | labs(x: "Category", y: "Value")'
+cat data.csv | gramgraph 'aes(x: category, y: value) | bar() | coord_flip() | labs(x: "Category", y: "Value") | theme_minimal()'
 ```
 
 **Smoothing (Linear Regression):**
 ```bash
-cat data.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth()'
+cat data.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | theme_minimal()'
 ```
 
 **Smoothing (LOESS):**
 ```bash
-cat data.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.35) | smooth(method: "loess", span: 0.65, color: "red", width: 3)'
+cat data.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.35) | smooth(method: "loess", span: 0.65, color: "red", width: 3) | theme_minimal()'
 ```
 
 **Boxplot:**
 ```bash
-cat demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | boxplot()'
+cat demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | boxplot() | theme_minimal()'
 ```
 
 **Violin Plot:**
 ```bash
-cat demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | violin(draw_quantiles: [0.25, 0.5, 0.75])'
+cat demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | violin(draw_quantiles: [0.25, 0.5, 0.75]) | theme_minimal()'
 ```
 
 **Density Plot (KDE):**
@@ -117,36 +119,36 @@ cat data.csv | gramgraph 'aes(x: value) | density() | labs(title: "Distribution"
 
 **Grouped Density Plot:**
 ```bash
-cat demographics.csv | gramgraph 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height by Gender")'
+cat demographics.csv | gramgraph 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height by Gender") | theme_minimal()'
 ```
 
 **Heatmap (Categorical):**
 ```bash
-cat heatmap_data.csv | gramgraph 'aes(x: x, y: y, fill: value) | heatmap()'
+cat heatmap_data.csv | gramgraph 'aes(x: x, y: y, fill: value) | heatmap() | theme_minimal()'
 ```
 
 **Heatmap (2D Binning):**
 ```bash
-cat data.csv | gramgraph 'aes(x: height, y: weight) | heatmap(bins: 20)'
+cat data.csv | gramgraph 'aes(x: height, y: weight) | heatmap(bins: 20) | theme_minimal()'
 ```
 
 **Ribbon Chart (Area with range):**
 ```bash
-cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribbon(alpha: 0.2) | line()'
+cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribbon(alpha: 0.2) | line() | theme_minimal()'
 ```
 
 **Reverse Scale:**
 ```bash
-cat data.csv | gramgraph 'aes(x: depth, y: pressure) | line() | labs(title: "Depth Profile") | scale_x_reverse()'
+cat data.csv | gramgraph 'aes(x: depth, y: pressure) | line() | labs(title: "Depth Profile") | theme_minimal() | scale_x_reverse()'
 ```
 
 **Variable Injection:**
 ```bash
 # Variables in aesthetics and labels
-cat data.csv | gramgraph 'aes(x: $xcol, y: $ycol) | line() | labs(title: $title)' -D xcol=time -D ycol=value -D title="My Chart"
+cat data.csv | gramgraph 'aes(x: $xcol, y: $ycol) | line() | labs(title: $title) | theme_minimal()' -D xcol=time -D ycol=value -D title="My Chart"
 
 # Variables in geometry styling
-cat data.csv | gramgraph 'aes(x: time, y: value) | line(color: $color, width: $width)' -D color=red -D width=2
+cat data.csv | gramgraph 'aes(x: time, y: value) | line(color: $color, width: $width) | theme_minimal()' -D color=red -D width=2
 ```
 
 ### Supported Commands
@@ -256,7 +258,7 @@ Variables use the `$name` syntax and can be substituted at runtime using `-D`/`-
 **Example:**
 ```bash
 # Reusable template
-cat sales.csv | gramgraph 'aes(x: $x, y: $y, color: $group) | line() | labs(title: $title)' \
+cat sales.csv | gramgraph 'aes(x: $x, y: $y, color: $group) | line() | labs(title: $title) | theme_minimal()' \
   -D x=date -D y=revenue -D group=region -D title="Sales by Region"
 ```
 
@@ -384,7 +386,7 @@ This separation follows `ggplot2`'s architecture where the Grid graphics system 
 # 1. Implement feature in code
 # 2. Add example to generate_examples.sh
 echo "Generating new_feature.svg..."
-cat examples/data.csv | cargo run -- 'aes(...) | new_feature()' --format svg > examples/new_feature.svg
+cat examples/data.csv | cargo run -- 'aes(...) | new_feature() | theme_minimal()' --format svg > examples/new_feature.svg
 
 # 3. Run the script
 bash generate_examples.sh
@@ -392,7 +394,7 @@ bash generate_examples.sh
 # 4. Add to README.md
 ### New Feature
 \`\`\`bash
-cat examples/data.csv | gramgraph 'aes(...) | new_feature()' --format svg > examples/new_feature.svg
+cat examples/data.csv | gramgraph 'aes(...) | new_feature() | theme_minimal()' --format svg > examples/new_feature.svg
 \`\`\`
 ![New Feature](examples/new_feature.svg)
 

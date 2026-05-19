@@ -15,7 +15,7 @@ cat data.csv | gramgraph 'aes(x: time, y: value) | line()' --format svg > output
 ### Grouped Line Chart
 
 ```bash
-cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | point()' --format svg > examples/line_grouped.svg
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | point() | theme_minimal()' --format svg > examples/line_grouped.svg
 ```
 
 ![Grouped Line Chart](examples/line_grouped.svg)
@@ -25,7 +25,7 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 Use `scale_x_datetime()` for ISO/RFC3339-like datetime strings. `interval` controls the tick spacing, and `format` uses chrono/strftime-style date labels.
 
 ```bash
-cat examples/weather_hourly.csv | gramgraph 'aes(x: time, y: temp) | line() | point() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")' --format svg > examples/weather_datetime.svg
+cat examples/weather_hourly.csv | gramgraph 'aes(x: time, y: temp) | line() | point() | theme_minimal() | scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")' --format svg > examples/weather_datetime.svg
 ```
 
 ![Datetime Scale](examples/weather_datetime.svg)
@@ -33,7 +33,7 @@ cat examples/weather_hourly.csv | gramgraph 'aes(x: time, y: temp) | line() | po
 ### Scatter Plot
 
 ```bash
-cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gender) | point(size: 5)' --format svg > examples/scatter.svg
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gender) | point(size: 5) | theme_minimal()' --format svg > examples/scatter.svg
 ```
 
 ![Scatter Plot](examples/scatter.svg)
@@ -41,7 +41,7 @@ cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gend
 ### Dodged Bar Chart
 
 ```bash
-cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge")' --format svg > examples/bar_dodge.svg
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | theme_minimal()' --format svg > examples/bar_dodge.svg
 ```
 
 ![Dodged Bar Chart](examples/bar_dodge.svg)
@@ -49,7 +49,7 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ### Stacked Bar Chart
 
 ```bash
-cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' --format svg > examples/bar_stack.svg
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "stack") | theme_minimal()' --format svg > examples/bar_stack.svg
 ```
 
 ![Stacked Bar Chart](examples/bar_stack.svg)
@@ -57,7 +57,7 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ### Triple Dodged Bar Chart
 
 ```bash
-cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge")' --format svg > examples/bar_triple_dodge.svg
+cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | theme_minimal()' --format svg > examples/bar_triple_dodge.svg
 ```
 
 ![Triple Dodged Bar Chart](examples/bar_triple_dodge.svg)
@@ -65,7 +65,7 @@ cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color
 ### Triple Stacked Bar Chart
 
 ```bash
-cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "stack")' --format svg > examples/bar_triple_stack.svg
+cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "stack") | theme_minimal()' --format svg > examples/bar_triple_stack.svg
 ```
 
 ![Triple Stacked Bar Chart](examples/bar_triple_stack.svg)
@@ -73,7 +73,7 @@ cat examples/financials_triple.csv | gramgraph 'aes(x: quarter, y: amount, color
 ### Faceted Plot with Color Grouping
 
 ```bash
-cat examples/regional_sales.csv | gramgraph 'aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region)' --format svg > examples/facets.svg
+cat examples/regional_sales.csv | gramgraph 'aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region) | theme_minimal()' --format svg > examples/facets.svg
 ```
 
 ![Faceted Plot](examples/facets.svg)
@@ -89,7 +89,7 @@ cat examples/distribution.csv | gramgraph 'aes(x: value) | histogram(bins: 25) |
 ### Horizontal Bar Chart (Coord Flip)
 
 ```bash
-cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | coord_flip() | labs(title: "Financials (Horizontal)", subtitle: "Q1-Q4 Performance")' --format svg > examples/coord_flip.svg
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | coord_flip() | labs(title: "Financials (Horizontal)", subtitle: "Q1-Q4 Performance") | theme_minimal()' --format svg > examples/coord_flip.svg
 ```
 
 ![Horizontal Bar Chart](examples/coord_flip.svg)
@@ -105,7 +105,7 @@ cat examples/ribbon_data.csv | gramgraph 'aes(x: x, y: y, ymin: lower, ymax: upp
 ### Smoothing (Linear Regression)
 
 ```bash
-cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit")' --format svg > examples/smooth.svg
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit") | theme_minimal()' --format svg > examples/smooth.svg
 ```
 
 ![Smoothing](examples/smooth.svg)
@@ -121,7 +121,7 @@ cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight) | point(alp
 ### Boxplot
 
 ```bash
-cat examples/demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | boxplot()' --format svg > examples/boxplot.svg
+cat examples/demographics.csv | gramgraph 'aes(x: gender, y: height, color: gender) | boxplot() | theme_minimal()' --format svg > examples/boxplot.svg
 ```
 
 ![Boxplot](examples/boxplot.svg)
@@ -171,7 +171,7 @@ cat examples/measurements.csv | gramgraph 'aes(x: elapsed, y: temperature) | poi
 ### Reverse Scale
 
 ```bash
-cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | labs(title: "Reverse Time Axis") | scale_x_reverse()' --format svg > examples/scale_reverse.svg
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | labs(title: "Reverse Time Axis") | theme_minimal() | scale_x_reverse()' --format svg > examples/scale_reverse.svg
 ```
 
 ![Reverse Scale](examples/scale_reverse.svg)
@@ -179,7 +179,7 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 ### Custom Theme with Element Functions
 
 ```bash
-cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | labs(title: "Custom Styled Chart") | theme(plot_title: element_text(size: 24, color: "#2E86AB"), panel_grid_minor: element_blank(), axis_line: element_blank())' --format svg > examples/theme_custom.svg
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | labs(title: "Custom Styled Chart") | theme_minimal() | theme(plot_title: element_text(size: 24, color: "#2E86AB"), panel_grid_minor: element_blank(), axis_line: element_blank())' --format svg > examples/theme_custom.svg
 ```
 
 ![Custom Theme](examples/theme_custom.svg)
@@ -187,7 +187,7 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 ### Dark Theme Example
 
 ```bash
-cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Dark Theme Example") | theme_dark()' --format svg > examples/theme_dark.svg
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Dark Theme Example") | theme_minimal() | theme_dark()' --format svg > examples/theme_dark.svg
 ```
 
 ![Dark Theme](examples/theme_dark.svg)
@@ -195,7 +195,7 @@ cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gend
 ### Classic Theme Example
 
 ```bash
-cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_classic()' --format svg > examples/theme_classic.svg
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_minimal() | theme_classic()' --format svg > examples/theme_classic.svg
 ```
 
 ![Classic Theme](examples/theme_classic.svg)
@@ -203,7 +203,7 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ### Custom Legend
 
 ```bash
-cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line(width: 3) | point(size: 4) | labs(title: "Custom Legend") | theme(legend_position: "bottom", legend_text: element_text(size: 14, color: "#222222"), legend_background: element_rect(fill: "#F7F7F7", color: "#333333", width: 1), legend_margin: 6, legend_key_size: 22)' --format svg > examples/legend_custom.svg
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line(width: 3) | point(size: 4) | labs(title: "Custom Legend") | theme_minimal() | theme(legend_position: "bottom", legend_text: element_text(size: 14, color: "#222222"), legend_background: element_rect(fill: "#F7F7F7", color: "#333333", width: 1), legend_margin: 6, legend_key_size: 22)' --format svg > examples/legend_custom.svg
 ```
 
 ![Custom Legend](examples/legend_custom.svg)
@@ -219,7 +219,7 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ### Bold Axis Labels
 
 ```bash
-cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Bold Axis Labels") | theme(axis_text: element_text(face: "bold", size: 14))' --format svg > examples/axis_bold.svg
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Bold Axis Labels") | theme_minimal() | theme(axis_text: element_text(face: "bold", size: 14))' --format svg > examples/axis_bold.svg
 ```
 
 ![Bold Axis Labels](examples/axis_bold.svg)
@@ -227,7 +227,7 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ### Rotated X-Axis Labels
 
 ```bash
-cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Rotated X-Axis Labels") | theme(axis_text: element_text(angle: 90, size: 12))' --format svg > examples/axis_rotated.svg
+cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Rotated X-Axis Labels") | theme_minimal() | theme(axis_text: element_text(angle: 90, size: 12))' --format svg > examples/axis_rotated.svg
 ```
 
 ![Rotated X-Axis Labels](examples/axis_rotated.svg)
@@ -243,7 +243,7 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 ### Fully Styled Axes
 
 ```bash
-cat examples/regional_sales.csv | gramgraph 'aes(x: region, y: sales, color: product) | bar(position: "dodge") | labs(title: "Fully Styled Axes") | theme(axis_text: element_text(face: "bold", angle: 90, color: "#2E86AB", size: 11), axis_line: element_line(color: "#333333", width: 2))' --format svg > examples/axis_styled.svg
+cat examples/regional_sales.csv | gramgraph 'aes(x: region, y: sales, color: product) | bar(position: "dodge") | labs(title: "Fully Styled Axes") | theme_minimal() | theme(axis_text: element_text(face: "bold", angle: 90, color: "#2E86AB", size: 11), axis_line: element_line(color: "#333333", width: 2))' --format svg > examples/axis_styled.svg
 ```
 
 ![Fully Styled Axes](examples/axis_styled.svg)
@@ -253,7 +253,7 @@ cat examples/regional_sales.csv | gramgraph 'aes(x: region, y: sales, color: pro
 Use `-D` / `--define` to inject variables into your DSL at runtime. Variables use the `$name` syntax.
 
 ```bash
-cat examples/timeseries.csv | gramgraph 'aes(x: $xcol, y: $ycol, color: series) | line() | labs(title: $title)' -D xcol=time -D ycol=value -D title="Variable Injection Example" --format svg > examples/variable_aes.svg
+cat examples/timeseries.csv | gramgraph 'aes(x: $xcol, y: $ycol, color: series) | line() | labs(title: $title) | theme_minimal()' -D xcol=time -D ycol=value -D title="Variable Injection Example" --format svg > examples/variable_aes.svg
 ```
 
 ![Variable Injection](examples/variable_aes.svg)
@@ -261,7 +261,7 @@ cat examples/timeseries.csv | gramgraph 'aes(x: $xcol, y: $ycol, color: series) 
 Variables work in aesthetics, geometries, and labels:
 
 ```bash
-cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight) | point(color: $color, size: $size) | labs(title: "Styled with Variables")' -D color=blue -D size=8 --format svg > examples/variable_geom.svg
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight) | point(color: $color, size: $size) | labs(title: "Styled with Variables") | theme_minimal()' -D color=blue -D size=8 --format svg > examples/variable_geom.svg
 ```
 
 ![Variable Geometry](examples/variable_geom.svg)

@@ -6,26 +6,26 @@ Custom Styled Chart
 <text x="400" y="59" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="12.096774193548388" opacity="1" fill="#000000">
 
 </text>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="554" x2="55" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="146" y1="554" x2="146" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="237" y1="554" x2="237" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="328" y1="554" x2="328" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="419" y1="554" x2="419" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="510" y1="554" x2="510" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="601" y1="554" x2="601" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="692" y1="554" x2="692" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="784" y1="554" x2="784" y2="76"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="554" x2="784" y2="554"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="507" x2="784" y2="507"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="459" x2="784" y2="459"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="411" x2="784" y2="411"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="363" x2="784" y2="363"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="315" x2="784" y2="315"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="268" x2="784" y2="268"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="220" x2="784" y2="220"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="172" x2="784" y2="172"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="124" x2="784" y2="124"/>
-<line opacity="1" stroke="#000000" stroke-width="1" x1="55" y1="76" x2="784" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="554" x2="55" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="146" y1="554" x2="146" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="237" y1="554" x2="237" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="328" y1="554" x2="328" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="419" y1="554" x2="419" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="510" y1="554" x2="510" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="601" y1="554" x2="601" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="692" y1="554" x2="692" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="784" y1="554" x2="784" y2="76"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="554" x2="784" y2="554"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="507" x2="784" y2="507"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="459" x2="784" y2="459"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="411" x2="784" y2="411"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="363" x2="784" y2="363"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="315" x2="784" y2="315"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="268" x2="784" y2="268"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="220" x2="784" y2="220"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="172" x2="784" y2="172"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="124" x2="784" y2="124"/>
+<line opacity="1" stroke="#CCCCCC" stroke-width="1" x1="55" y1="76" x2="784" y2="76"/>
 <polyline fill="none" opacity="1" stroke="#FFFFFF" stroke-width="0" points="54,76 54,554 "/>
 <text x="45" y="554" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 0
