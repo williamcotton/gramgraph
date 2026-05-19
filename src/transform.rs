@@ -121,6 +121,10 @@ fn process_layer(
 ) -> Result<LayerData> {
     let aes = &layer_spec.aesthetics;
 
+    if matches!(layer_spec.original_layer, Layer::HLine(_) | Layer::VLine(_)) {
+        return Ok(process_reference_layer(&layer_spec.original_layer));
+    }
+
     // 1. Identify Grouping Column
     let group_col = aes
         .color
@@ -374,6 +378,9 @@ fn process_layer(
                 let end = start + y_val;
                 stack_offsets.insert(stack_key, end);
                 (start, end, start, end)
+            } else if let Layer::Area(area) = &layer_spec.original_layer {
+                let baseline = area.baseline;
+                (baseline, y_val, baseline.min(y_val), baseline.max(y_val))
             } else if matches!(layer_spec.original_layer, Layer::Ribbon(_))
                 || matches!(layer_spec.original_layer, Layer::Boxplot(_))
                 || matches!(layer_spec.original_layer, Layer::Violin(_))
@@ -484,6 +491,64 @@ fn process_layer(
 
     Ok(LayerData { groups })
 }
+
+fn empty_group_data(key: String, style: RenderStyle) -> GroupData {
+    GroupData {
+        key,
+        x: vec![],
+        y: vec![],
+        y_start: vec![],
+        y_min: vec![],
+        y_max: vec![],
+        y_q1: vec![],
+        y_median: vec![],
+        y_q3: vec![],
+        outliers: vec![],
+        violin_density: vec![],
+        violin_density_y: vec![],
+        violin_quantile_values: vec![],
+        heatmap_y_positions: vec![],
+        heatmap_fill_values: vec![],
+        heatmap_cell_width: 0.0,
+        heatmap_cell_height: 0.0,
+        x_categories: None,
+        y_categories: None,
+        style,
+    }
+}
+
+fn process_reference_layer(layer: &Layer) -> LayerData {
+    let mut group = match layer {
+        Layer::HLine(hline) => empty_group_data(
+            "default".to_string(),
+            RenderStyle::Line(LineStyle {
+                color: hline.color.clone(),
+                width: hline.width,
+                alpha: hline.alpha,
+            }),
+        ),
+        Layer::VLine(vline) => empty_group_data(
+            "default".to_string(),
+            RenderStyle::Line(LineStyle {
+                color: vline.color.clone(),
+                width: vline.width,
+                alpha: vline.alpha,
+            }),
+        ),
+        _ => unreachable!("process_reference_layer only accepts reference layers"),
+    };
+
+    match layer {
+        Layer::HLine(hline) => group.y.push(hline.yintercept),
+        Layer::VLine(vline) => group.x.push(vline.xintercept),
+        _ => {}
+    }
+
+    LayerData {
+        groups: vec![group],
+    }
+}
+
 fn find_col_index(headers: &[String], name: &str) -> Result<usize> {
     headers
         .iter()
@@ -569,6 +634,10 @@ fn build_style(
             width: pick_size(&b.width),
             alpha: pick_alpha(&b.alpha),
         }),
+        Layer::Area(a) => RenderStyle::Area(RibbonStyle {
+            color: pick_color(&a.color),
+            alpha: pick_alpha(&a.alpha),
+        }),
         Layer::Ribbon(r) => RenderStyle::Ribbon(RibbonStyle {
             color: pick_color(&r.color),
             alpha: pick_alpha(&r.alpha),
@@ -609,6 +678,16 @@ fn build_style(
                 value_max: vmax,
             })
         }
+        Layer::HLine(h) => RenderStyle::Line(LineStyle {
+            color: h.color.clone(),
+            width: h.width,
+            alpha: h.alpha,
+        }),
+        Layer::VLine(v) => RenderStyle::Line(LineStyle {
+            color: v.color.clone(),
+            width: v.width,
+            alpha: v.alpha,
+        }),
     }
 }
 

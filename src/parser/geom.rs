@@ -1,8 +1,9 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
 use super::ast::{
-    AestheticValue, BarLayer, BarPosition, BoxplotLayer, DensityLayer, HeatmapLayer, Layer,
-    LineLayer, PointLayer, RibbonLayer, ViolinLayer,
+    AestheticValue, AreaLayer, BarLayer, BarPosition, BoxplotLayer, DensityLayer, HLineLayer,
+    HeatmapLayer, Layer, LineInterpolation, LineLayer, PointLayer, RibbonLayer, VLineLayer,
+    ViolinLayer,
 };
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
@@ -94,6 +95,214 @@ pub fn parse_line(input: &str) -> IResult<&str, Layer> {
     }
 
     Ok((input, Layer::Line(layer)))
+}
+
+/// Parse a step line geometry.
+/// Format: step(direction: "hv" | "vh" | "mid", color: "red", width: 2, ...)
+pub fn parse_step(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("step"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("direction:")), ws(string_literal)), |d| {
+                ("direction", ArgValue::ColorFixed(d))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = LineLayer {
+        interpolation: LineInterpolation::StepHV,
+        ..Default::default()
+    };
+
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("direction", ArgValue::ColorFixed(direction)) => {
+                layer.interpolation = match direction.as_str() {
+                    "vh" => LineInterpolation::StepVH,
+                    "mid" | "middle" => LineInterpolation::StepMid,
+                    _ => LineInterpolation::StepHV,
+                };
+            }
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::Line(layer)))
+}
+
+/// Parse an area geometry (filled area from baseline to y)
+pub fn parse_area(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("area"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+            map(preceded(ws(tag("baseline:")), ws(number_literal)), |b| {
+                ("baseline", ArgValue::NumericFixed(b))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = AreaLayer::default();
+
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            ("baseline", ArgValue::NumericFixed(b)) => layer.baseline = b,
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::Area(layer)))
+}
+
+/// Parse a horizontal reference line.
+pub fn parse_hline(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("hline"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("yintercept:")), ws(number_literal)), |y| {
+                ("yintercept", ArgValue::NumericFixed(y))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("label:")), ws(string_literal)), |label| {
+                ("label", ArgValue::ColorFixed(label))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = HLineLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("yintercept", ArgValue::NumericFixed(y)) => layer.yintercept = y,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(c),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(w),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(a),
+            ("label", ArgValue::ColorFixed(label)) => layer.label = Some(label),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::HLine(layer)))
+}
+
+/// Parse a vertical reference line.
+pub fn parse_vline(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("vline"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("xintercept:")), ws(number_literal)), |x| {
+                ("xintercept", ArgValue::NumericFixed(x))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("label:")), ws(string_literal)), |label| {
+                ("label", ArgValue::ColorFixed(label))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = VLineLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("xintercept", ArgValue::NumericFixed(x)) => layer.xintercept = x,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(c),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(w),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(a),
+            ("label", ArgValue::ColorFixed(label)) => layer.label = Some(label),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::VLine(layer)))
 }
 
 /// Parse a point geometry
@@ -658,8 +867,12 @@ pub fn parse_heatmap(input: &str) -> IResult<&str, Layer> {
 pub fn parse_geom(input: &str) -> IResult<&str, Layer> {
     alt((
         parse_line,
+        parse_step,
         parse_point,
         parse_bar,
+        parse_area,
+        parse_hline,
+        parse_vline,
         parse_ribbon,
         parse_histogram,
         parse_smooth,
@@ -698,6 +911,66 @@ mod tests {
                 assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
             }
             _ => panic!("Expected Line layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_step_mid() {
+        let result = parse_step(r#"step(direction: "mid", color: "red", width: 2)"#);
+        assert!(result.is_ok());
+        let (_, layer) = result.unwrap();
+        match layer {
+            Layer::Line(l) => {
+                assert_eq!(l.interpolation, LineInterpolation::StepMid);
+                assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected Line layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_area_with_baseline() {
+        let result = parse_area(r#"area(color: "steelblue", alpha: 0.3, baseline: -5)"#);
+        assert!(result.is_ok());
+        let (_, layer) = result.unwrap();
+        match layer {
+            Layer::Area(a) => {
+                assert_eq!(
+                    a.color,
+                    Some(AestheticValue::Fixed("steelblue".to_string()))
+                );
+                assert_eq!(a.alpha, Some(AestheticValue::Fixed(0.3)));
+                assert_eq!(a.baseline, -5.0);
+            }
+            _ => panic!("Expected Area layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_reference_lines() {
+        let (_, hline) =
+            parse_hline(r#"hline(yintercept: 10, color: "gray", width: 2, label: "Target")"#)
+                .expect("hline should parse");
+        match hline {
+            Layer::HLine(h) => {
+                assert_eq!(h.yintercept, 10.0);
+                assert_eq!(h.color, Some("gray".to_string()));
+                assert_eq!(h.width, Some(2.0));
+                assert_eq!(h.label, Some("Target".to_string()));
+            }
+            _ => panic!("Expected HLine layer"),
+        }
+
+        let (_, vline) = parse_vline(r#"vline(xintercept: 5, alpha: 0.4, label: "Marker")"#)
+            .expect("vline should parse");
+        match vline {
+            Layer::VLine(v) => {
+                assert_eq!(v.xintercept, 5.0);
+                assert_eq!(v.alpha, Some(0.4));
+                assert_eq!(v.label, Some("Marker".to_string()));
+            }
+            _ => panic!("Expected VLine layer"),
         }
     }
 

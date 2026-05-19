@@ -55,6 +55,18 @@ cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: ty
 echo "Generating ribbon.svg..."
 cat examples/ribbon_data.csv | cargo run -- 'aes(x: x, y: y, ymin: lower, ymax: upper) | ribbon(color: "blue", alpha: 0.3) | line(color: "blue") | labs(title: "Model Prediction", caption: "Shaded area represents 95% CI") | theme_minimal()' --format svg > examples/ribbon.svg
 
+# Area Chart
+echo "Generating area.svg..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | area(alpha: 0.25, baseline: 0) | line(width: 2) | labs(title: "Area Chart", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/area.svg
+
+# Step Line Chart
+echo "Generating step.svg..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | step(direction: "mid", width: 2) | point(size: 4) | labs(title: "Step Line Chart", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/step.svg
+
+# Reference Lines
+echo "Generating reference_lines.svg..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | hline(yintercept: 12, color: "red", width: 2, alpha: 0.8, label: "Target y = 12") | vline(xintercept: 3, color: "gray40", width: 2, label: "Time marker x = 3") | labs(title: "Reference Lines", x: "Time", y: "Value") | theme_minimal() | theme(legend_position: "bottom")' --format svg > examples/reference_lines.svg
+
 # Smoothing (Linear Regression)
 echo "Generating smooth.svg..."
 cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit") | theme_minimal()' --format svg > examples/smooth.svg
@@ -112,6 +124,10 @@ cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: g
 # Classic Theme Example
 echo "Generating theme_classic.svg..."
 cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_minimal() | theme_classic()' --format svg > examples/theme_classic.svg
+
+# Void Theme Example
+echo "Generating theme_void.svg..."
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Void Theme Example") | theme_minimal() | theme_void()' --format svg > examples/theme_void.svg
 
 # Custom Legend Configuration
 echo "Generating legend_custom.svg..."

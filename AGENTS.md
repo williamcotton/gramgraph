@@ -17,7 +17,7 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 ### ✅ Implemented
 
-- **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
+- **Core Geometries**: `line()`, `step()`, `point()`, `bar()`, `area()`, `ribbon()`, `hline()`, `vline()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
 - **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression and LOESS), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
 - **Data-Driven Aesthetics**: Automatic grouping by color, size, rendered point shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
@@ -27,7 +27,7 @@ This architecture enables powerful, declarative chart specifications with clean 
 - **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`, `scale_x_sqrt()`, `scale_y_sqrt()`
 - **Nice Ticks**: D3-style algorithm snaps numeric axis domains to clean boundaries and generates human-friendly tick positions (0, 1, 2... or 0, 5, 10...)
 - **Coordinates**: `coord_flip()` for horizontal charts
-- **Visual Customization**: `labs()` for titles/labels, `theme_minimal()`, `theme_dark()`, and `theme_classic()` presets
+- **Visual Customization**: `labs()` for titles/labels, `theme_minimal()`, `theme_dark()`, `theme_classic()`, and `theme_void()` presets
 - **Hierarchical Theme System**: `element_text()`, `element_line()`, `element_rect()`, `element_blank()` with inheritance
 - **Axis Text Styling**: Bold/italic text (`face`), X-axis label rotation (`angle`), text anchoring (`hjust`/`vjust`)
 - **Tick Visibility Control**: Hide tick marks with `axis_ticks: element_blank()`
@@ -142,6 +142,21 @@ cat data.csv | gramgraph 'aes(x: height, y: weight) | heatmap(bins: 20) | theme_
 cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribbon(alpha: 0.2) | line() | theme_minimal()'
 ```
 
+**Area Chart (Filled to Baseline):**
+```bash
+cat data.csv | gramgraph 'aes(x: time, y: value, color: series) | area(alpha: 0.25, baseline: 0) | line() | theme_minimal()'
+```
+
+**Step Line Chart:**
+```bash
+cat data.csv | gramgraph 'aes(x: time, y: value) | step(direction: "mid", width: 2) | point() | theme_minimal()'
+```
+
+**Reference Lines:**
+```bash
+cat data.csv | gramgraph 'aes(x: time, y: value) | line() | hline(yintercept: 12, color: "red", label: "Target") | vline(xintercept: 3, color: "gray40", label: "Marker") | theme_minimal()'
+```
+
 **Reverse Scale:**
 ```bash
 cat data.csv | gramgraph 'aes(x: depth, y: pressure) | line() | labs(title: "Depth Profile") | theme_minimal() | scale_x_reverse()'
@@ -171,11 +186,15 @@ Defines global aesthetic mappings.
 
 #### Geometries
 - `line(...)`: Line chart.
+- `step(...)`: Stair-step line chart. Supports `direction: "hv" | "vh" | "mid" | "middle"`, `color`, `width`, and `alpha`.
 - `point(...)`: Scatter plot. Supports fixed or mapped `shape` values such as `"circle"`, `"square"`, `"triangle"`, `"diamond"`, `"cross"`, `"x"`, and `"star"`.
 - `bar(...)`: Bar chart. Supports `position: "dodge" | "stack" | "identity"`.
 - `boxplot(...)`: Box and whisker plot with automatic outlier detection.
 - `violin(...)`: Violin plot using Kernel Density Estimation (KDE). Supports `draw_quantiles: [0.25, 0.5, 0.75]`.
+- `area(...)`: Filled area from `y` to a baseline. Supports `alpha: n`, `color: "..."`, and `baseline: n` (default 0).
 - `ribbon(...)`: Filled area between `ymin` and `ymax`.
+- `hline(...)`: Horizontal reference line. Uses `yintercept: n` (default 0); supports `color`, `width`, `alpha`, and `label`. Does not require `aes(...)` when used alone. Unlabeled reference lines do not create legend entries.
+- `vline(...)`: Vertical reference line. Uses `xintercept: n` (default 0); supports `color`, `width`, `alpha`, and `label`. Does not require `aes(...)` when used alone. Unlabeled reference lines do not create legend entries.
 - `histogram(...)`: Binning bar chart. Supports `bins: n`.
 - `density(...)`: Density curve using Gaussian KDE. Supports `alpha: n`, `color: "..."`, `bw: n` (bandwidth).
 - `heatmap(...)`: 2D tile plot with viridis color mapping. Supports `bins: n` (2D binning), `fill: col` (value column), `alpha: n`.
@@ -209,6 +228,7 @@ GramGraph implements a hierarchical theme system inspired by ggplot2, using elem
 - `theme_minimal()`: Clean, white background, no axis lines/ticks, light grid.
 - `theme_dark()`: Dark plot and panel backgrounds with light foreground text, axes, grid, and legend.
 - `theme_classic()`: White background with visible axes/ticks and no grid lines.
+- `theme_void()`: Blank plotting canvas with axes, ticks, grid, and legend removed.
 
 **Element Functions:**
 - `element_text(size: n, color: "...", family: "...", face: "bold|italic", angle: n, hjust: 0-1, vjust: 0-1)` - Text styling

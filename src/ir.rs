@@ -130,6 +130,7 @@ pub enum RenderStyle {
     Line(LineStyle),
     Point(PointStyle),
     Bar(BarStyle),
+    Area(RibbonStyle),
     Ribbon(RibbonStyle),
     Boxplot(BoxplotStyle),
     Violin(ViolinStyle),

@@ -110,6 +110,30 @@ cat examples/ribbon_data.csv | gramgraph 'aes(x: x, y: y, ymin: lower, ymax: upp
 
 ![Ribbon Chart](examples/ribbon.svg)
 
+### Area Chart
+
+```bash
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | area(alpha: 0.25, baseline: 0) | line(width: 2) | labs(title: "Area Chart", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/area.svg
+```
+
+![Area Chart](examples/area.svg)
+
+### Step Line Chart
+
+```bash
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | step(direction: "mid", width: 2) | point(size: 4) | labs(title: "Step Line Chart", x: "Time", y: "Value") | theme_minimal()' --format svg > examples/step.svg
+```
+
+![Step Line Chart](examples/step.svg)
+
+### Reference Lines
+
+```bash
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line() | hline(yintercept: 12, color: "red", width: 2, alpha: 0.8, label: "Target y = 12") | vline(xintercept: 3, color: "gray40", width: 2, label: "Time marker x = 3") | labs(title: "Reference Lines", x: "Time", y: "Value") | theme_minimal() | theme(legend_position: "bottom")' --format svg > examples/reference_lines.svg
+```
+
+![Reference Lines](examples/reference_lines.svg)
+
 ### Smoothing (Linear Regression)
 
 ```bash
@@ -223,6 +247,14 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ```
 
 ![Classic Theme](examples/theme_classic.svg)
+
+### Void Theme Example
+
+```bash
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Void Theme Example") | theme_minimal() | theme_void()' --format svg > examples/theme_void.svg
+```
+
+![Void Theme](examples/theme_void.svg)
 
 ### Custom Legend
 

@@ -164,6 +164,64 @@ x,y
 }
 
 #[test]
+fn test_end_to_end_area_step_and_reference_lines() {
+    let csv = "\
+x,y
+1,2
+2,4
+3,3
+4,6
+";
+    let result = run_gramgraph_svg(
+        r#"aes(x: x, y: y) | area(color: "steelblue", alpha: 0.25) | step(direction: "mid", color: "steelblue", width: 2) | hline(yintercept: 3, color: "gray", width: 1, label: "Target") | vline(xintercept: 2.5, color: "red", alpha: 0.5, label: "Marker") | theme_minimal()"#,
+        csv,
+    );
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(
+        svg.contains("polygon"),
+        "area should render as a polygon: {}",
+        svg
+    );
+    assert!(
+        svg.contains("#FF0000"),
+        "vline should use the requested red color: {}",
+        svg
+    );
+    assert!(
+        svg.contains("Target") && svg.contains("Marker"),
+        "labeled reference lines should create legend entries: {}",
+        svg
+    );
+    assert!(
+        !svg.contains("default"),
+        "reference lines should not expose their synthetic group key: {}",
+        svg
+    );
+}
+
+#[test]
+fn test_end_to_end_reference_line_without_aes() {
+    let csv = "x,y\n1,1\n";
+    let result = run_gramgraph_svg(r#"hline(yintercept: 0, color: "gray")"#, csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(
+        !svg.contains("default"),
+        "unlabeled reference lines should not create default legend entries: {}",
+        svg
+    );
+}
+
+#[test]
+fn test_end_to_end_theme_void() {
+    let csv = "x,y\n1,1\n2,4\n3,9\n";
+    let result = run_gramgraph_svg(r#"aes(x: x, y: y) | point() | theme_void()"#, csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+}
+
+#[test]
 fn test_end_to_end_bar_chart() {
     let csv = fs::read_to_string("fixtures/bar_chart.csv").expect("Failed to read test CSV");
     let result = run_gramgraph("aes(x: category, y: value1) | bar()", &csv);

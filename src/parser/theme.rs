@@ -414,6 +414,44 @@ pub fn parse_theme_classic(input: &str) -> IResult<&str, Theme> {
     ))
 }
 
+/// Parse theme_void() - blank panel with no axes, ticks, grid, or legend.
+pub fn parse_theme_void(input: &str) -> IResult<&str, Theme> {
+    let (input, _) = ws(tag("theme_void"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+    let (input, _) = ws(char(')'))(input)?;
+
+    Ok((
+        input,
+        Theme {
+            line: ThemeElement::Inherit,
+            rect: ThemeElement::Inherit,
+            text: ThemeElement::Inherit,
+            plot_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            plot_title: ThemeElement::Inherit,
+            panel_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            panel_grid_major: ThemeElement::Blank,
+            panel_grid_minor: ThemeElement::Blank,
+            axis_text: ThemeElement::Text(ElementText {
+                color: Some("white".to_string()),
+                ..Default::default()
+            }),
+            axis_line: ThemeElement::Blank,
+            axis_ticks: ThemeElement::Blank,
+            legend_position: Some(LegendPosition::None),
+            legend_background: ThemeElement::Blank,
+            legend_text: ThemeElement::Inherit,
+            legend_margin: None,
+            legend_key_size: None,
+        },
+    ))
+}
+
 /// Parse theme(...) with hierarchical element arguments
 pub fn parse_theme(input: &str) -> IResult<&str, Theme> {
     let (input, _) = ws(tag("theme"))(input)?;
@@ -454,6 +492,7 @@ pub fn parse_theme_command(input: &str) -> IResult<&str, Theme> {
         parse_theme_minimal,
         parse_theme_dark,
         parse_theme_classic,
+        parse_theme_void,
         parse_theme,
     ))(input)
 }
@@ -515,6 +554,17 @@ mod tests {
         let (_, theme) = result.unwrap();
         assert_eq!(theme.panel_grid_minor, ThemeElement::Blank);
         assert_eq!(theme.axis_line, ThemeElement::Blank);
+    }
+
+    #[test]
+    fn test_parse_theme_void() {
+        let result = parse_theme_void("theme_void()");
+        assert!(result.is_ok());
+        let (_, theme) = result.unwrap();
+        assert_eq!(theme.panel_grid_major, ThemeElement::Blank);
+        assert_eq!(theme.axis_line, ThemeElement::Blank);
+        assert_eq!(theme.axis_ticks, ThemeElement::Blank);
+        assert_eq!(theme.legend_position, Some(LegendPosition::None));
     }
 
     #[test]

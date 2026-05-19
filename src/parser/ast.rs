@@ -248,11 +248,14 @@ pub enum Layer {
     Line(LineLayer),
     Point(PointLayer),
     Bar(BarLayer),
+    Area(AreaLayer),
     Ribbon(RibbonLayer),
     Boxplot(BoxplotLayer),
     Violin(ViolinLayer),
     Density(DensityLayer),
     Heatmap(HeatmapLayer),
+    HLine(HLineLayer),
+    VLine(VLineLayer),
 }
 
 impl Layer {
@@ -266,12 +269,29 @@ impl Layer {
             Layer::Line(l) => &l.stat,
             Layer::Point(p) => &p.stat,
             Layer::Bar(b) => &b.stat,
+            Layer::Area(a) => &a.stat,
             Layer::Ribbon(r) => &r.stat,
             Layer::Boxplot(b) => &b.stat,
             Layer::Violin(v) => &v.stat,
             Layer::Density(d) => &d.stat,
             Layer::Heatmap(h) => &h.stat,
+            Layer::HLine(h) => &h.stat,
+            Layer::VLine(v) => &v.stat,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LineInterpolation {
+    Linear,
+    StepHV,
+    StepVH,
+    StepMid,
+}
+
+impl Default for LineInterpolation {
+    fn default() -> Self {
+        LineInterpolation::Linear
     }
 }
 
@@ -287,6 +307,7 @@ pub struct LineLayer {
     pub color: Option<AestheticValue<String>>,
     pub width: Option<AestheticValue<f64>>,
     pub alpha: Option<AestheticValue<f64>>,
+    pub interpolation: LineInterpolation,
     // Future: linetype (solid, dashed, dotted)
 }
 
@@ -320,6 +341,81 @@ pub struct BarLayer {
 
     // Positioning strategy
     pub position: BarPosition,
+}
+
+/// Area geometry layer (filled area from baseline to y)
+#[derive(Debug, Clone, PartialEq)]
+pub struct AreaLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub y: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    pub baseline: f64,
+}
+
+impl Default for AreaLayer {
+    fn default() -> Self {
+        AreaLayer {
+            stat: Stat::Identity,
+            x: None,
+            y: None,
+            color: None,
+            alpha: None,
+            baseline: 0.0,
+        }
+    }
+}
+
+/// Horizontal reference line layer
+#[derive(Debug, Clone, PartialEq)]
+pub struct HLineLayer {
+    pub stat: Stat,
+    pub yintercept: f64,
+    pub color: Option<String>,
+    pub width: Option<f64>,
+    pub alpha: Option<f64>,
+    pub label: Option<String>,
+}
+
+impl Default for HLineLayer {
+    fn default() -> Self {
+        HLineLayer {
+            stat: Stat::Identity,
+            yintercept: 0.0,
+            color: None,
+            width: None,
+            alpha: None,
+            label: None,
+        }
+    }
+}
+
+/// Vertical reference line layer
+#[derive(Debug, Clone, PartialEq)]
+pub struct VLineLayer {
+    pub stat: Stat,
+    pub xintercept: f64,
+    pub color: Option<String>,
+    pub width: Option<f64>,
+    pub alpha: Option<f64>,
+    pub label: Option<String>,
+}
+
+impl Default for VLineLayer {
+    fn default() -> Self {
+        VLineLayer {
+            stat: Stat::Identity,
+            xintercept: 0.0,
+            color: None,
+            width: None,
+            alpha: None,
+            label: None,
+        }
+    }
 }
 
 /// Ribbon geometry layer

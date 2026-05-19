@@ -3,7 +3,7 @@ use crate::ir::{
     DrawCommand, PanelScales, PanelScene, RenderData, RenderStyle, ResolvedSpec, Scale,
     ScaleSystem, SceneGraph,
 };
-use crate::parser::ast::{BarPosition, Layer};
+use crate::parser::ast::{BarPosition, Layer, LineInterpolation};
 use crate::RenderOptions;
 use anyhow::{anyhow, Result};
 
@@ -207,6 +207,75 @@ fn transform_visual_points(
         .collect()
 }
 
+fn expand_line_points(
+    points: Vec<(f64, f64)>,
+    interpolation: LineInterpolation,
+) -> Vec<(f64, f64)> {
+    if points.len() < 2 || interpolation == LineInterpolation::Linear {
+        return points;
+    }
+
+    let mut expanded = Vec::with_capacity(points.len() * 2 - 1);
+    expanded.push(points[0]);
+
+    for pair in points.windows(2) {
+        let (x0, y0) = pair[0];
+        let (x1, y1) = pair[1];
+        match interpolation {
+            LineInterpolation::StepHV => {
+                expanded.push((x1, y0));
+                expanded.push((x1, y1));
+            }
+            LineInterpolation::StepVH => {
+                expanded.push((x0, y1));
+                expanded.push((x1, y1));
+            }
+            LineInterpolation::StepMid => {
+                let mid = (x0 + x1) / 2.0;
+                expanded.push((mid, y0));
+                expanded.push((mid, y1));
+                expanded.push((x1, y1));
+            }
+            LineInterpolation::Linear => expanded.push((x1, y1)),
+        }
+    }
+
+    expanded
+}
+
+fn line_interpolation(layer: &Layer) -> LineInterpolation {
+    match layer {
+        Layer::Line(line) => line.interpolation,
+        _ => LineInterpolation::Linear,
+    }
+}
+
+fn reference_line_label(layer: &Layer) -> Option<&str> {
+    match layer {
+        Layer::HLine(hline) => hline.label.as_deref(),
+        Layer::VLine(vline) => vline.label.as_deref(),
+        _ => None,
+    }
+}
+
+fn hline_points(y: f64, scales: &PanelScales, is_flipped: bool) -> Result<Vec<(f64, f64)>> {
+    let y = transform_axis_value(y, &scales.y, "y")?;
+    Ok(if is_flipped {
+        vec![(y, scales.x.range.0), (y, scales.x.range.1)]
+    } else {
+        vec![(scales.x.range.0, y), (scales.x.range.1, y)]
+    })
+}
+
+fn vline_points(x: f64, scales: &PanelScales, is_flipped: bool) -> Result<Vec<(f64, f64)>> {
+    let x = transform_axis_value(x, &scales.x, "x")?;
+    Ok(if is_flipped {
+        vec![(scales.y.range.0, x), (scales.y.range.1, x)]
+    } else {
+        vec![(x, scales.y.range.0), (x, scales.y.range.1)]
+    })
+}
+
 /// Compile data and scales into a SceneGraph of drawing commands
 pub fn compile_geometry(
     data: RenderData,
@@ -265,21 +334,44 @@ pub fn compile_geometry(
             for (group_idx, group) in layer_data.groups.into_iter().enumerate() {
                 match &group.style {
                     RenderStyle::Line(style) => {
-                        let points: Vec<(f64, f64)> = group
-                            .x
-                            .iter()
-                            .zip(group.y.iter())
-                            .map(|(&x, &y)| transform_data_point(x, y, &panel_scales, is_flipped))
-                            .collect::<Result<Vec<_>>>()?;
+                        let points = match &layer_spec.original_layer {
+                            Layer::HLine(_) => hline_points(group.y[0], &panel_scales, is_flipped)?,
+                            Layer::VLine(_) => vline_points(group.x[0], &panel_scales, is_flipped)?,
+                            _ => {
+                                let raw_points: Vec<(f64, f64)> = group
+                                    .x
+                                    .iter()
+                                    .zip(group.y.iter())
+                                    .map(|(&x, &y)| (x, y))
+                                    .collect();
+                                let raw_points = expand_line_points(
+                                    raw_points,
+                                    line_interpolation(&layer_spec.original_layer),
+                                );
+                                raw_points
+                                    .into_iter()
+                                    .map(|(x, y)| {
+                                        transform_data_point(x, y, &panel_scales, is_flipped)
+                                    })
+                                    .collect::<Result<Vec<_>>>()?
+                            }
+                        };
+                        let legend = if matches!(
+                            &layer_spec.original_layer,
+                            Layer::HLine(_) | Layer::VLine(_)
+                        ) {
+                            reference_line_label(&layer_spec.original_layer)
+                                .filter(|label| emitted_legend_keys.insert((*label).to_string()))
+                                .map(ToString::to_string)
+                        } else if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                            Some(group.key.clone())
+                        } else {
+                            None
+                        };
                         commands.push(DrawCommand::DrawLine {
                             points,
                             style: style.clone(),
-                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone())
-                            {
-                                Some(group.key.clone())
-                            } else {
-                                None
-                            },
+                            legend,
                         });
                     }
                     RenderStyle::Point(style) => {
@@ -508,6 +600,32 @@ pub fn compile_geometry(
                         for i in (0..group.x.len()).rev() {
                             let x = group.x[i];
                             let y = group.y_min[i];
+                            points.push(transform_data_point(x, y, &panel_scales, is_flipped)?);
+                        }
+
+                        commands.push(DrawCommand::DrawPolygon {
+                            points,
+                            style: style.clone(),
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone())
+                            {
+                                Some(group.key.clone())
+                            } else {
+                                None
+                            },
+                        });
+                    }
+                    RenderStyle::Area(style) => {
+                        let mut points = Vec::with_capacity(group.x.len() * 2);
+
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let y = group.y[i];
+                            points.push(transform_data_point(x, y, &panel_scales, is_flipped)?);
+                        }
+
+                        for i in (0..group.x.len()).rev() {
+                            let x = group.x[i];
+                            let y = group.y_start[i];
                             points.push(transform_data_point(x, y, &panel_scales, is_flipped)?);
                         }
 
