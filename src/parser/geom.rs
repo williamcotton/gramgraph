@@ -326,13 +326,51 @@ pub fn parse_histogram(input: &str) -> IResult<&str, Layer> {
 }
 
 /// Parse a smooth geometry (sugar for line(stat: "smooth"))
+/// Format: smooth(), smooth(method: "loess", span: 0.75), or smooth(color: "red")
 pub fn parse_smooth(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(tag("smooth"))(input)?;
     let (input, _) = ws(char('('))(input)?;
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("method:")), ws(string_literal)), |m| ("method", ArgValue::ColorFixed(m))),
+            map(preceded(ws(tag("span:")), ws(number_literal)), |s| ("span", ArgValue::NumericFixed(s))),
+            map(preceded(ws(tag("samples:")), ws(number_literal)), |s| ("samples", ArgValue::NumericFixed(s))),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| ("y", ArgValue::ColumnName(y))),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| ("width", ArgValue::NumericFixed(w))),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| ("width", ArgValue::NumericMapped(w))),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
+        ))
+    )(input)?;
     let (input, _) = ws(char(')'))(input)?;
 
     let mut layer = LineLayer::default();
-    layer.stat = crate::parser::ast::Stat::Smooth { method: "lm".to_string() };
+    let mut method = "lm".to_string();
+    let mut span = None;
+    let mut samples = None;
+
+    for (key, val) in args {
+        match (key, val) {
+            ("method", ArgValue::ColorFixed(m)) => method = m,
+            ("span", ArgValue::NumericFixed(s)) => span = Some(s),
+            ("samples", ArgValue::NumericFixed(s)) => samples = Some(s.max(2.0) as usize),
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("y", ArgValue::ColumnName(y)) => layer.y = Some(y),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    layer.stat = crate::parser::ast::Stat::Smooth { method, span, samples };
     Ok((input, Layer::Line(layer)))
 }
 
@@ -735,6 +773,29 @@ mod tests {
             Layer::Line(l) => {
                 assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
                 assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected Line layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_smooth_loess() {
+        let result = parse_smooth(r#"smooth(method: "loess", span: 0.6, samples: 40, color: "red", width: 3)"#);
+        assert!(result.is_ok());
+        let (_, layer) = result.unwrap();
+
+        match layer {
+            Layer::Line(l) => {
+                assert_eq!(l.color, Some(AestheticValue::Fixed("red".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(3.0)));
+                assert!(matches!(
+                    l.stat,
+                    crate::parser::ast::Stat::Smooth {
+                        ref method,
+                        span: Some(0.6),
+                        samples: Some(40),
+                    } if method == "loess"
+                ));
             }
             _ => panic!("Expected Line layer"),
         }

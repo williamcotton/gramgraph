@@ -140,6 +140,10 @@ enum ArgValue {
 #[derive(Debug)]
 enum ThemeArg {
     LegendPosition(LegendPosition),
+    LegendBackground(ThemeElement),
+    LegendText(ThemeElement),
+    LegendMargin(f64),
+    LegendKeySize(f64),
     PlotBackground(ThemeElement),
     PlotTitle(ThemeElement),
     PanelBackground(ThemeElement),
@@ -183,6 +187,10 @@ fn parse_theme_arg(input: &str) -> IResult<&str, ThemeArg> {
         map(preceded(ws(tag("axis_text:")), ws(parse_theme_element)), ThemeArg::AxisText),
         map(preceded(ws(tag("axis_line:")), ws(parse_theme_element)), ThemeArg::AxisLine),
         map(preceded(ws(tag("axis_ticks:")), ws(parse_theme_element)), ThemeArg::AxisTicks),
+        map(preceded(ws(tag("legend_background:")), ws(parse_theme_element)), ThemeArg::LegendBackground),
+        map(preceded(ws(tag("legend_text:")), ws(parse_theme_element)), ThemeArg::LegendText),
+        map(preceded(ws(tag("legend_margin:")), ws(number_literal)), ThemeArg::LegendMargin),
+        map(preceded(ws(tag("legend_key_size:")), ws(number_literal)), ThemeArg::LegendKeySize),
         map(preceded(ws(tag("line:")), ws(parse_theme_element)), ThemeArg::Line),
         map(preceded(ws(tag("rect:")), ws(parse_theme_element)), ThemeArg::Rect),
         map(preceded(ws(tag("text:")), ws(parse_theme_element)), ThemeArg::Text),
@@ -219,7 +227,116 @@ pub fn parse_theme_minimal(input: &str) -> IResult<&str, Theme> {
         axis_text: ThemeElement::Inherit,
         axis_line: ThemeElement::Blank,
         axis_ticks: ThemeElement::Blank,
-        legend_position: LegendPosition::UpperRight,
+        legend_position: None,
+        legend_background: ThemeElement::Inherit,
+        legend_text: ThemeElement::Inherit,
+        legend_margin: None,
+        legend_key_size: None,
+    }))
+}
+
+/// Parse theme_dark() - dark background with light foreground elements
+pub fn parse_theme_dark(input: &str) -> IResult<&str, Theme> {
+    let (input, _) = ws(tag("theme_dark"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+    let (input, _) = ws(char(')'))(input)?;
+
+    Ok((input, Theme {
+        line: ThemeElement::Inherit,
+        rect: ThemeElement::Inherit,
+        text: ThemeElement::Text(ElementText {
+            color: Some("#f2f2f2".to_string()),
+            ..Default::default()
+        }),
+        plot_background: ThemeElement::Rect(ElementRect {
+            fill: Some("#1f1f1f".to_string()),
+            ..Default::default()
+        }),
+        plot_title: ThemeElement::Inherit,
+        panel_background: ThemeElement::Rect(ElementRect {
+            fill: Some("#2b2b2b".to_string()),
+            ..Default::default()
+        }),
+        panel_grid_major: ThemeElement::Line(ElementLine {
+            color: Some("#555555".to_string()),
+            width: Some(0.5),
+            ..Default::default()
+        }),
+        panel_grid_minor: ThemeElement::Line(ElementLine {
+            color: Some("#3f3f3f".to_string()),
+            width: Some(0.25),
+            ..Default::default()
+        }),
+        axis_text: ThemeElement::Text(ElementText {
+            color: Some("#d8d8d8".to_string()),
+            ..Default::default()
+        }),
+        axis_line: ThemeElement::Line(ElementLine {
+            color: Some("#d8d8d8".to_string()),
+            width: Some(1.0),
+            ..Default::default()
+        }),
+        axis_ticks: ThemeElement::Line(ElementLine {
+            color: Some("#d8d8d8".to_string()),
+            width: Some(1.0),
+            ..Default::default()
+        }),
+        legend_position: None,
+        legend_background: ThemeElement::Rect(ElementRect {
+            fill: Some("#2b2b2b".to_string()),
+            color: Some("#d8d8d8".to_string()),
+            width: Some(1.0),
+        }),
+        legend_text: ThemeElement::Text(ElementText {
+            color: Some("#f2f2f2".to_string()),
+            ..Default::default()
+        }),
+        legend_margin: None,
+        legend_key_size: None,
+    }))
+}
+
+/// Parse theme_classic() - white background, axis lines, and no grid
+pub fn parse_theme_classic(input: &str) -> IResult<&str, Theme> {
+    let (input, _) = ws(tag("theme_classic"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+    let (input, _) = ws(char(')'))(input)?;
+
+    Ok((input, Theme {
+        line: ThemeElement::Inherit,
+        rect: ThemeElement::Inherit,
+        text: ThemeElement::Inherit,
+        plot_background: ThemeElement::Rect(ElementRect {
+            fill: Some("white".to_string()),
+            ..Default::default()
+        }),
+        plot_title: ThemeElement::Inherit,
+        panel_background: ThemeElement::Rect(ElementRect {
+            fill: Some("white".to_string()),
+            ..Default::default()
+        }),
+        panel_grid_major: ThemeElement::Blank,
+        panel_grid_minor: ThemeElement::Blank,
+        axis_text: ThemeElement::Inherit,
+        axis_line: ThemeElement::Line(ElementLine {
+            color: Some("black".to_string()),
+            width: Some(1.0),
+            ..Default::default()
+        }),
+        axis_ticks: ThemeElement::Line(ElementLine {
+            color: Some("black".to_string()),
+            width: Some(1.0),
+            ..Default::default()
+        }),
+        legend_position: None,
+        legend_background: ThemeElement::Rect(ElementRect {
+            fill: Some("white".to_string()),
+            color: Some("black".to_string()),
+            width: Some(1.0),
+        }),
+        legend_text: ThemeElement::Inherit,
+        legend_margin: None,
+        legend_key_size: None,
     }))
 }
 
@@ -238,7 +355,11 @@ pub fn parse_theme(input: &str) -> IResult<&str, Theme> {
     let mut theme = Theme::default();
     for arg in args {
         match arg {
-            ThemeArg::LegendPosition(pos) => theme.legend_position = pos,
+            ThemeArg::LegendPosition(pos) => theme.legend_position = Some(pos),
+            ThemeArg::LegendBackground(elem) => theme.legend_background = elem,
+            ThemeArg::LegendText(elem) => theme.legend_text = elem,
+            ThemeArg::LegendMargin(margin) => theme.legend_margin = Some(margin),
+            ThemeArg::LegendKeySize(size) => theme.legend_key_size = Some(size),
             ThemeArg::PlotBackground(elem) => theme.plot_background = elem,
             ThemeArg::PlotTitle(elem) => theme.plot_title = elem,
             ThemeArg::PanelBackground(elem) => theme.panel_background = elem,
@@ -258,7 +379,7 @@ pub fn parse_theme(input: &str) -> IResult<&str, Theme> {
 
 /// Parse any theme command (theme_minimal or theme)
 pub fn parse_theme_command(input: &str) -> IResult<&str, Theme> {
-    alt((parse_theme_minimal, parse_theme))(input)
+    alt((parse_theme_minimal, parse_theme_dark, parse_theme_classic, parse_theme))(input)
 }
 
 #[cfg(test)]
@@ -338,7 +459,37 @@ mod tests {
         let result = parse_theme("theme(legend_position: \"bottom\")");
         assert!(result.is_ok());
         let (_, theme) = result.unwrap();
-        assert_eq!(theme.legend_position, LegendPosition::LowerMiddle);
+        assert_eq!(theme.legend_position, Some(LegendPosition::LowerMiddle));
+    }
+
+    #[test]
+    fn test_parse_theme_legend_config() {
+        let result = parse_theme(r##"theme(legend_text: element_text(size: 14, color: "#333333"), legend_background: element_rect(fill: "white", color: "black"), legend_margin: 6, legend_key_size: 18)"##);
+        assert!(result.is_ok());
+        let (_, theme) = result.unwrap();
+
+        if let ThemeElement::Text(t) = &theme.legend_text {
+            assert_eq!(t.size, Some(14.0));
+            assert_eq!(t.color, Some("#333333".to_string()));
+        } else {
+            panic!("Expected Text element for legend_text");
+        }
+
+        if let ThemeElement::Rect(r) = &theme.legend_background {
+            assert_eq!(r.fill, Some("white".to_string()));
+            assert_eq!(r.color, Some("black".to_string()));
+        } else {
+            panic!("Expected Rect element for legend_background");
+        }
+
+        assert_eq!(theme.legend_margin, Some(6.0));
+        assert_eq!(theme.legend_key_size, Some(18.0));
+    }
+
+    #[test]
+    fn test_parse_preset_themes() {
+        assert!(parse_theme_command("theme_dark()").is_ok());
+        assert!(parse_theme_command("theme_classic()").is_ok());
     }
 
     #[test]

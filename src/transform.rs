@@ -12,7 +12,7 @@ use crate::palette::{ColorPalette, SizePalette, ShapePalette};
 pub fn apply_transformations(spec: &ResolvedSpec, data: &PlotData) -> Result<RenderData> {
     // 1. Partition Data (Faceting)
     let partitions = partition_data(spec, data)?;
-    
+
     // 2. Calculate Layout info
     let (nrow, ncol) = calculate_grid_dimensions(partitions.len(), spec.facet.as_ref());
     let facet_layout = FacetLayout {
@@ -115,7 +115,7 @@ fn process_layer(
     x_scale_spec: Option<&AxisScale>,
 ) -> Result<LayerData> {
     let aes = &layer_spec.aesthetics;
-    
+
     // 1. Identify Grouping Column
     let group_col = aes.color.as_ref()
         .or(aes.size.as_ref())
@@ -126,7 +126,7 @@ fn process_layer(
     // We return a map: GroupKey -> (RawX, RawY, RawYMin, RawYMax)
     // RawX is String to handle both numeric and categorical initially
     let mut raw_groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)> = HashMap::new();
-    
+
     // Column Indices
     let x_idx = find_col_index(&data.headers, &aes.x_col)?;
     let y_idx = if let Some(y) = &aes.y_col { Some(find_col_index(&data.headers, y)?) } else { None };
@@ -185,7 +185,7 @@ fn process_layer(
             if let Some(idx) = ymin_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 }
         };
         let ymax_val = if let Some(idx) = ymax_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 };
-        
+
         let group_key = if let Some(idx) = group_idx {
             row[idx].clone()
         } else {
@@ -227,7 +227,7 @@ fn process_layer(
     // If categorical, we need a unified mapping for stacking/grouping
     let mut x_category_map = HashMap::new();
     let mut category_order = Vec::new();
-    
+
     if use_categorical {
         // Collect unique categories preserving order of first appearance in data.
         // This lets the CSV control display order (like ggplot2 factor levels).
@@ -247,7 +247,7 @@ fn process_layer(
                 fa.partial_cmp(&fb).unwrap_or(std::cmp::Ordering::Equal)
             });
         }
-        
+
         for (i, cat) in category_order.iter().enumerate() {
             x_category_map.insert(cat.clone(), i as f64);
         }
@@ -256,7 +256,7 @@ fn process_layer(
     // 5. Build Groups (Styles & Coordinates)
     let mut groups = Vec::new();
     let sorted_group_keys = get_sorted_keys(&raw_groups);
-    
+
     // Assign Palettes
     let color_map = ColorPalette::category10().assign_colors(&sorted_group_keys);
     let size_map = SizePalette::default_range().assign_sizes(&sorted_group_keys);
@@ -276,13 +276,13 @@ fn process_layer(
         let raw_y = &stat_data.y;
         let raw_ymin = &stat_data.ymin;
         let raw_ymax = &stat_data.ymax;
-        
+
         let mut x_floats = Vec::with_capacity(raw_x.len());
         let mut y_starts = Vec::with_capacity(raw_x.len());
         let mut y_ends = Vec::with_capacity(raw_x.len());
         let mut y_mins = Vec::with_capacity(raw_x.len());
         let mut y_maxs = Vec::with_capacity(raw_x.len());
-        
+
         // Boxplot specific
         let mut y_q1s = Vec::new();
         let mut y_medians = Vec::new();
@@ -298,7 +298,7 @@ fn process_layer(
             let y_val = raw_y[i];
             let raw_min = raw_ymin[i];
             let raw_max = raw_ymax[i];
-            
+
             // Resolve X
             let x_val = if use_categorical {
                 *x_category_map.get(x_s).unwrap() // Should exist
@@ -311,7 +311,7 @@ fn process_layer(
 
             // Resolve Y (Stacking and Min/Max)
             let stack_key = if use_categorical { x_s.clone() } else { x_val.to_string() };
-            
+
             let (y_start, y_end, y_min, y_max) = if is_stacked {
                 let start = *stack_offsets.get(&stack_key).unwrap_or(&0.0);
                 let end = start + y_val;
@@ -324,12 +324,12 @@ fn process_layer(
                 // Line/Point/Bar(unstacked)
                 (0.0, y_val, 0.0, y_val)
             };
-            
+
             y_starts.push(y_start);
             y_ends.push(y_end);
             y_mins.push(y_min);
             y_maxs.push(y_max);
-            
+
             // Collect boxplot stats if available
             if let Some(bp) = &stat_data.boxplot {
                 y_q1s.push(bp.q1[i]);
@@ -437,7 +437,7 @@ fn build_style(
             }
         }
     };
-    
+
     // Helper to pick size/width
     let pick_size = |l_val: &Option<crate::parser::ast::AestheticValue<f64>>| -> Option<f64> {
          if aes.size.is_some() && size_map.contains_key(&group_key) {
@@ -586,7 +586,7 @@ fn compute_boxplot_stat(
         }
 
         let mut unique_x: Vec<String> = x_groups.keys().cloned().collect();
-        // Sort unique X? 
+        // Sort unique X?
         // We rely on numeric parsing if possible, or string sort.
         // Let's replicate the sorting logic from process_layer loosely or just string sort.
         // process_layer handles final sorting. Here we just need consistent order.
@@ -603,7 +603,7 @@ fn compute_boxplot_stat(
         for x_val in unique_x {
             let mut ys = x_groups[&x_val].clone();
             ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            
+
             if ys.is_empty() { continue; }
 
             let q1 = percentile(&ys, 0.25);
@@ -894,7 +894,7 @@ fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     let rank = p * (n - 1) as f64;
     let lower_idx = rank.floor() as usize;
     let upper_idx = rank.ceil() as usize;
-    
+
     if lower_idx == upper_idx {
         sorted_data[lower_idx]
     } else {
@@ -1092,7 +1092,7 @@ fn apply_statistics(
         Stat::Identity => Ok(groups.into_iter().map(|(k, v)| (k, StatData::from_tuple(v))).collect()),
         Stat::Bin { bins } => compute_bin_stat(groups, *bins),
         Stat::Count => compute_count_stat(groups),
-        Stat::Smooth { method } => compute_smooth_stat(groups, method),
+        Stat::Smooth { method, span, samples } => compute_smooth_stat(groups, method, *span, *samples),
         Stat::Boxplot => compute_boxplot_stat(groups),
         Stat::Violin { draw_quantiles } => compute_violin_stat(groups, draw_quantiles),
         Stat::Density { bw } => compute_density_stat(groups, *bw),
@@ -1104,21 +1104,21 @@ fn compute_count_stat(
     groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>
 ) -> Result<HashMap<String, StatData>> {
     let mut new_groups = HashMap::new();
-    
+
     for (key, (x_strs, _, _, _)) in groups {
         let mut counts: HashMap<String, usize> = HashMap::new();
         for s in x_strs {
             *counts.entry(s).or_default() += 1;
         }
-        
+
         let mut keys: Vec<String> = counts.keys().cloned().collect();
         keys.sort();
-        
+
         let mut new_x = Vec::new();
         let mut new_y = Vec::new();
         let mut new_ymin = Vec::new();
         let mut new_ymax = Vec::new();
-        
+
         for k in keys {
             let count = counts[&k] as f64;
             new_x.push(k);
@@ -1126,50 +1126,160 @@ fn compute_count_stat(
             new_ymin.push(0.0);
             new_ymax.push(count);
         }
-        
+
         new_groups.insert(key, StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)));
     }
-    
+
     Ok(new_groups)
 }
 
 fn compute_smooth_stat(
     groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
-    _method: &str
+    method: &str,
+    span: Option<f64>,
+    samples: Option<usize>,
 ) -> Result<HashMap<String, StatData>> {
     let mut new_groups = HashMap::new();
-    
+
     for (key, (x_strs, y_vals, _, _)) in groups {
-        // Simple Linear Regression
         let mut x_floats = Vec::new();
         for s in &x_strs {
             x_floats.push(s.parse::<f64>().map_err(|_| anyhow!("Stat 'smooth' requires numeric x data"))?);
         }
-        
+
         if x_floats.len() < 2 { continue; }
-        
-        let n = x_floats.len() as f64;
-        let sum_x: f64 = x_floats.iter().sum();
-        let sum_y: f64 = y_vals.iter().sum();
-        let sum_xx: f64 = x_floats.iter().map(|&x| x * x).sum();
-        let sum_xy: f64 = x_floats.iter().zip(y_vals.iter()).map(|(&x, &y)| x * y).sum();
-        
-        let slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x);
-        let intercept = (sum_y - slope * sum_x) / n;
-        
-        // Generate trend line points (min and max X)
-        let min_x = x_floats.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let max_x = x_floats.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-        
-        let new_x = vec![min_x.to_string(), max_x.to_string()];
-        let new_y = vec![slope * min_x + intercept, slope * max_x + intercept];
+
+        let method = method.to_ascii_lowercase();
+        let (new_x_values, new_y) = match method.as_str() {
+            "lm" | "linear" | "linear_regression" => compute_linear_smooth_points(&x_floats, &y_vals),
+            "loess" | "lowess" => compute_loess_smooth_points(&x_floats, &y_vals, span, samples),
+            other => return Err(anyhow!("Unknown smooth method '{}'. Supported methods: \"lm\", \"loess\"", other)),
+        }?;
+
+        let new_x: Vec<String> = new_x_values.iter().map(|x| x.to_string()).collect();
         let new_ymin = new_y.clone();
         let new_ymax = new_y.clone();
-        
+
         new_groups.insert(key, StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)));
     }
-    
+
     Ok(new_groups)
+}
+
+fn compute_linear_smooth_points(x: &[f64], y: &[f64]) -> Result<(Vec<f64>, Vec<f64>)> {
+    let n = x.len() as f64;
+    let sum_x: f64 = x.iter().sum();
+    let sum_y: f64 = y.iter().sum();
+    let sum_xx: f64 = x.iter().map(|&x| x * x).sum();
+    let sum_xy: f64 = x.iter().zip(y.iter()).map(|(&x, &y)| x * y).sum();
+
+    let denom = n * sum_xx - sum_x * sum_x;
+    if denom.abs() < f64::EPSILON {
+        return Err(anyhow!("Stat 'smooth' requires x data with non-zero variance"));
+    }
+
+    let slope = (n * sum_xy - sum_x * sum_y) / denom;
+    let intercept = (sum_y - slope * sum_x) / n;
+
+    let min_x = x.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+    let max_x = x.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+
+    Ok((
+        vec![min_x, max_x],
+        vec![slope * min_x + intercept, slope * max_x + intercept],
+    ))
+}
+
+fn compute_loess_smooth_points(
+    x: &[f64],
+    y: &[f64],
+    span: Option<f64>,
+    samples: Option<usize>,
+) -> Result<(Vec<f64>, Vec<f64>)> {
+    if x.len() != y.len() || x.len() < 2 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    let mut pairs: Vec<(f64, f64)> = x.iter().copied().zip(y.iter().copied()).collect();
+    pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+    let min_x = pairs.first().map(|p| p.0).unwrap();
+    let max_x = pairs.last().map(|p| p.0).unwrap();
+    if (max_x - min_x).abs() < f64::EPSILON {
+        return Err(anyhow!("Stat 'smooth' requires x data with non-zero variance"));
+    }
+
+    let sample_count = samples.unwrap_or(80).max(2);
+    let span = span.unwrap_or(0.75).clamp(0.05, 1.0);
+    let neighborhood = ((pairs.len() as f64 * span).ceil() as usize).clamp(2, pairs.len());
+
+    let mut smooth_x = Vec::with_capacity(sample_count);
+    let mut smooth_y = Vec::with_capacity(sample_count);
+
+    for i in 0..sample_count {
+        let t = i as f64 / (sample_count - 1) as f64;
+        let x0 = min_x + (max_x - min_x) * t;
+        let y0 = loess_predict_at(&pairs, x0, neighborhood);
+        if y0.is_finite() {
+            smooth_x.push(x0);
+            smooth_y.push(y0);
+        }
+    }
+
+    Ok((smooth_x, smooth_y))
+}
+
+fn loess_predict_at(pairs: &[(f64, f64)], x0: f64, neighborhood: usize) -> f64 {
+    let mut distances: Vec<f64> = pairs.iter().map(|(x, _)| (x - x0).abs()).collect();
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut bandwidth = distances[neighborhood.saturating_sub(1)];
+    if bandwidth <= f64::EPSILON {
+        bandwidth = distances.iter().copied().find(|d| *d > f64::EPSILON).unwrap_or(1.0);
+    }
+
+    let mut sw = 0.0;
+    let mut sx = 0.0;
+    let mut sy = 0.0;
+    let mut sxx = 0.0;
+    let mut sxy = 0.0;
+
+    for &(x, y) in pairs {
+        let distance = (x - x0).abs();
+        if distance > bandwidth {
+            continue;
+        }
+
+        let u = distance / bandwidth;
+        let weight = (1.0 - u.powi(3)).powi(3);
+        let centered_x = x - x0;
+
+        sw += weight;
+        sx += weight * centered_x;
+        sy += weight * y;
+        sxx += weight * centered_x * centered_x;
+        sxy += weight * centered_x * y;
+    }
+
+    if sw <= f64::EPSILON {
+        return pairs
+            .iter()
+            .min_by(|a, b| {
+                (a.0 - x0)
+                    .abs()
+                    .partial_cmp(&(b.0 - x0).abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .map(|(_, y)| *y)
+            .unwrap_or(0.0);
+    }
+
+    let denom = sw * sxx - sx * sx;
+    if denom.abs() <= f64::EPSILON {
+        sy / sw
+    } else {
+        (sy * sxx - sx * sxy) / denom
+    }
 }
 
 fn compute_bin_stat(
@@ -1184,37 +1294,37 @@ fn compute_bin_stat(
             all_values.push(v);
         }
     }
-    
+
     if all_values.is_empty() { return Ok(groups.into_iter().map(|(k, v)| (k, StatData::from_tuple(v))).collect()); }
 
     let min = all_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
     let max = all_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-    
+
     // Add small buffer or handle 0 range
     let range = max - min;
     let width = if range == 0.0 { 1.0 } else { range / bin_count as f64 };
-    
+
     let mut new_groups = HashMap::new();
-    
+
     for (key, (x_strs, _, _, _)) in groups {
         let mut bins: HashMap<isize, usize> = HashMap::new();
-        
+
         for s in x_strs {
              // We already checked they are numeric
              let v = s.parse::<f64>().unwrap();
              let bin_idx = ((v - min) / width).floor() as isize;
              *bins.entry(bin_idx).or_default() += 1;
         }
-        
+
         // Convert bins back to (X, Y)
         let mut bin_indices: Vec<isize> = bins.keys().cloned().collect();
         bin_indices.sort();
-        
+
         let mut new_x = Vec::new();
         let mut new_y = Vec::new();
         let mut new_ymin = Vec::new();
         let mut new_ymax = Vec::new();
-        
+
         for idx in bin_indices {
             let center = min + (idx as f64 * width) + (width / 2.0);
             let count = bins[&idx] as f64;
@@ -1223,10 +1333,10 @@ fn compute_bin_stat(
             new_ymin.push(0.0);
             new_ymax.push(count);
         }
-        
+
         new_groups.insert(key, StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)));
     }
-    
+
     Ok(new_groups)
 }
 
@@ -1276,7 +1386,7 @@ mod tests {
         let csv = make_data();
         let spec = make_spec();
         let render_data = apply_transformations(&spec, &csv).unwrap();
-        
+
         assert_eq!(render_data.panels.len(), 1);
         let panel = &render_data.panels[0];
         assert_eq!(panel.layers.len(), 1);
@@ -1297,10 +1407,10 @@ mod tests {
             ncol: None,
             scales: crate::parser::ast::FacetScales::Fixed,
         });
-        
+
         let csv = make_data();
         let render_data = apply_transformations(&spec, &csv).unwrap();
-        
+
         assert_eq!(render_data.panels.len(), 2); // A and B panels
         assert_eq!(render_data.facet_layout.panel_titles.len(), 2);
         assert!(render_data.facet_layout.panel_titles.contains(&"A".to_string()));

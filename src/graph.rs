@@ -160,6 +160,9 @@ fn scale_resolved_theme(theme: &ResolvedTheme, pixel_scale: u32) -> ResolvedThem
     let mut scaled = theme.clone();
     scaled.plot_title.size = scale_f64(scaled.plot_title.size, pixel_scale);
     scaled.axis_text.size = scale_f64(scaled.axis_text.size, pixel_scale);
+    scaled.legend_text.size = scale_f64(scaled.legend_text.size, pixel_scale);
+    scaled.legend_margin = scale_f64(scaled.legend_margin, pixel_scale);
+    scaled.legend_key_size = scale_f64(scaled.legend_key_size, pixel_scale);
 
     for line in [
         scaled.panel_grid_major.as_mut(),
@@ -174,6 +177,9 @@ fn scale_resolved_theme(theme: &ResolvedTheme, pixel_scale: u32) -> ResolvedThem
 
     scaled.plot_background.border_width = scale_f64(scaled.plot_background.border_width, pixel_scale);
     scaled.panel_background.border_width = scale_f64(scaled.panel_background.border_width, pixel_scale);
+    if let Some(background) = scaled.legend_background.as_mut() {
+        background.border_width = scale_f64(background.border_width, pixel_scale);
+    }
 
     scaled
 }
@@ -243,6 +249,22 @@ fn build_axis_text_styles<'a>(theme: &'a ResolvedTheme) -> (TextStyle<'a>, TextS
         .color(&theme.axis_text.color);
 
     (x_axis_style, y_axis_style, axis_desc_style)
+}
+
+fn build_legend_text_style<'a>(theme: &'a ResolvedTheme) -> TextStyle<'a> {
+    let font_style = match theme.legend_text.face {
+        FontFace::Bold => FontStyle::Bold,
+        FontFace::Italic => FontStyle::Italic,
+        FontFace::BoldItalic => FontStyle::Bold,
+        FontFace::Plain => FontStyle::Normal,
+    };
+
+    TextStyle::from(
+        (theme.legend_text.family.as_str(), theme.legend_text.size as i32)
+            .into_font()
+            .style(font_style),
+    )
+    .color(&theme.legend_text.color)
 }
 
 fn estimate_text_size<DB: DrawingBackend>(
@@ -1057,15 +1079,22 @@ impl Canvas {
                 LegendPosition::None => unreachable!(), // handled above
             };
 
-            chart.configure_series_labels()
+            let legend_text_style = build_legend_text_style(theme);
+            let mut legend = chart.configure_series_labels();
+            legend
                 .position(position)
-                .margin(scale_u32(10, pixel_scale))
-                .legend_area_size(scale_u32(30, pixel_scale))
-                .background_style(theme.panel_background.fill.mix(0.8))
-                .border_style(&theme.axis_text.color)
-                .label_font(("sans-serif", scale_i32(12, pixel_scale)).into_font().color(&theme.axis_text.color))
-                .draw()
-                .context("Failed to draw legend")?;
+                .margin(to_stroke_width(theme.legend_margin))
+                .legend_area_size(to_stroke_width(theme.legend_key_size))
+                .label_font(legend_text_style);
+
+            if let Some(background) = &theme.legend_background {
+                legend.background_style(background.fill);
+                if let Some(border_color) = background.border_color {
+                    legend.border_style(ShapeStyle::from(&border_color).stroke_width(to_stroke_width(background.border_width)));
+                }
+            }
+
+            legend.draw().context("Failed to draw legend")?;
         }
 
         Ok(())

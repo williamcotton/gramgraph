@@ -344,7 +344,7 @@ Q4
 <rect x="255" y="127" width="146" height="239" opacity="1" fill="#008000" stroke="none"/>
 <rect x="437" y="163" width="146" height="219" opacity="1" fill="#008000" stroke="none"/>
 <rect x="619" y="37" width="146" height="299" opacity="1" fill="#008000" stroke="none"/>
-<rect x="692" y="42" width="88" height="59" opacity="0.8" fill="#FFFFFF" stroke="none"/>
+<rect x="692" y="42" width="88" height="59" opacity="1" fill="#FFFFFF" stroke="none"/>
 <rect x="692" y="42" width="88" height="59" opacity="1" fill="none" stroke="#000000"/>
 <text x="732" y="52" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 COGS

@@ -18,7 +18,7 @@ This architecture enables powerful, declarative chart specifications with clean 
 ### ✅ Implemented
 
 - **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
-- **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
+- **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression and LOESS), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
 - **Data-Driven Aesthetics**: Automatic grouping by color, size, shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
 - **Layer Composition**: Multiple geometries on shared coordinate space
@@ -27,11 +27,11 @@ This architecture enables powerful, declarative chart specifications with clean 
 - **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`
 - **Nice Ticks**: D3-style algorithm snaps numeric axis domains to clean boundaries and generates human-friendly tick positions (0, 1, 2... or 0, 5, 10...)
 - **Coordinates**: `coord_flip()` for horizontal charts
-- **Visual Customization**: `labs()` for titles/labels, `theme_minimal()` for presets
+- **Visual Customization**: `labs()` for titles/labels, `theme_minimal()`, `theme_dark()`, and `theme_classic()` presets
 - **Hierarchical Theme System**: `element_text()`, `element_line()`, `element_rect()`, `element_blank()` with inheritance
 - **Axis Text Styling**: Bold/italic text (`face`), X-axis label rotation (`angle`), text anchoring (`hjust`/`vjust`)
 - **Tick Visibility Control**: Hide tick marks with `axis_ticks: element_blank()`
-- **Automatic Legends**: Generated for grouped visualizations
+- **Automatic Legends**: Generated for grouped visualizations with configurable position, text, background, margin, and key size
 - **Color Palettes**: Category10 scheme with 10 distinct colors
 - **Flexible Parsing**: Order-independent named arguments in DSL
 - **Data Abstraction**: Internal `PlotData` type for flexible data input (e.g., CSV, JSON)
@@ -40,9 +40,8 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 ### 🚀 Coming Soon
 
-- More statistical methods (loess smoothing)
-- Custom legend configuration
-- Additional preset themes (theme_dark, theme_classic)
+- Additional guide controls for legend titles and per-aesthetic legend selection
+- More statistical methods beyond linear regression, LOESS, KDE, binning, and boxplot summaries
 
 ## Architecture
 
@@ -94,6 +93,11 @@ cat data.csv | gramgraph 'aes(x: category, y: value) | bar() | coord_flip() | la
 **Smoothing (Linear Regression):**
 ```bash
 cat data.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth()'
+```
+
+**Smoothing (LOESS):**
+```bash
+cat data.csv | gramgraph 'aes(x: height, y: weight) | point(alpha: 0.35) | smooth(method: "loess", span: 0.65, color: "red", width: 3)'
 ```
 
 **Boxplot:**
@@ -162,7 +166,7 @@ Defines global aesthetic mappings.
 - `histogram(...)`: Binning bar chart. Supports `bins: n`.
 - `density(...)`: Density curve using Gaussian KDE. Supports `alpha: n`, `color: "..."`, `bw: n` (bandwidth).
 - `heatmap(...)`: 2D tile plot with viridis color mapping. Supports `bins: n` (2D binning), `fill: col` (value column), `alpha: n`.
-- `smooth(...)`: Smoothing line (Linear Regression).
+- `smooth(...)`: Smoothing line. Defaults to linear regression. Supports `method: "lm" | "loess"`, `span: n` for LOESS neighborhood size (default 0.75), `samples: n` for generated LOESS points (default 80), plus line styling such as `color`, `width`, and `alpha`.
 
 #### `labs(...)`
 - `title: "..."`
@@ -187,6 +191,8 @@ GramGraph implements a hierarchical theme system inspired by ggplot2, using elem
 
 **Preset Themes:**
 - `theme_minimal()`: Clean, white background, no axis lines/ticks, light grid.
+- `theme_dark()`: Dark plot and panel backgrounds with light foreground text, axes, grid, and legend.
+- `theme_classic()`: White background with visible axes/ticks and no grid lines.
 
 **Element Functions:**
 - `element_text(size: n, color: "...", family: "...", face: "bold|italic", angle: n, hjust: 0-1, vjust: 0-1)` - Text styling
@@ -210,6 +216,10 @@ GramGraph implements a hierarchical theme system inspired by ggplot2, using elem
 - `axis_line`: Axis line styling (element_line or element_blank)
 - `axis_ticks`: Tick mark styling (element_line or element_blank)
 - `legend_position`: "right" | "left" | "top" | "bottom" | "upper-right" | "upper-middle" | "upper-left" | "middle-right" | "middle-middle" | "middle-left" | "lower-right" | "lower-middle" | "lower-left" | "none"
+- `legend_text`: Legend label styling (element_text)
+- `legend_background`: Legend background and border styling (element_rect or element_blank)
+- `legend_margin`: Legend padding in pixels
+- `legend_key_size`: Legend key area size in pixels
 
 **Color Formats:**
 - Named colors: "red", "blue", "gray", "white", etc.

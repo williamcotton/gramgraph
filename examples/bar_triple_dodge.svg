@@ -269,7 +269,7 @@ Q4
 <rect x="352" y="167" width="49" height="387" opacity="1" fill="#008000" stroke="none"/>
 <rect x="534" y="199" width="49" height="355" opacity="1" fill="#008000" stroke="none"/>
 <rect x="717" y="70" width="48" height="484" opacity="1" fill="#008000" stroke="none"/>
-<rect x="692" y="42" width="88" height="59" opacity="0.8" fill="#FFFFFF" stroke="none"/>
+<rect x="692" y="42" width="88" height="59" opacity="1" fill="#FFFFFF" stroke="none"/>
 <rect x="692" y="42" width="88" height="59" opacity="1" fill="none" stroke="#000000"/>
 <text x="732" y="52" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 COGS

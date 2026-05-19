@@ -33,8 +33,11 @@ fn merge_themes(base: Theme, overlay: Theme) -> Theme {
         axis_text: if overlay.axis_text != ThemeElement::Inherit { overlay.axis_text } else { base.axis_text },
         axis_line: if overlay.axis_line != ThemeElement::Inherit { overlay.axis_line } else { base.axis_line },
         axis_ticks: if overlay.axis_ticks != ThemeElement::Inherit { overlay.axis_ticks } else { base.axis_ticks },
-        // legend_position always takes overlay (no Inherit concept for this field)
-        legend_position: overlay.legend_position,
+        legend_position: overlay.legend_position.or(base.legend_position),
+        legend_background: if overlay.legend_background != ThemeElement::Inherit { overlay.legend_background } else { base.legend_background },
+        legend_text: if overlay.legend_text != ThemeElement::Inherit { overlay.legend_text } else { base.legend_text },
+        legend_margin: overlay.legend_margin.or(base.legend_margin),
+        legend_key_size: overlay.legend_key_size.or(base.legend_key_size),
     }
 }
 
@@ -247,7 +250,7 @@ mod tests {
         let (_, spec) = result.unwrap();
         assert_eq!(spec.labels.as_ref().unwrap().title, Some("My Plot".to_string()));
         assert_eq!(spec.labels.as_ref().unwrap().x, Some("Time".to_string()));
-        assert_eq!(spec.theme.as_ref().unwrap().legend_position, crate::parser::ast::LegendPosition::None);
+        assert_eq!(spec.theme.as_ref().unwrap().legend_position, Some(crate::parser::ast::LegendPosition::None));
     }
 
     #[test]

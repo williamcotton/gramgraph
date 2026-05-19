@@ -55,6 +55,10 @@ cat examples/ribbon_data.csv | cargo run -- 'aes(x: x, y: y, ymin: lower, ymax: 
 echo "Generating smooth.svg..."
 cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit")' --format svg > examples/smooth.svg
 
+# Smoothing (LOESS)
+echo "Generating smooth_loess.svg..."
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.35) | smooth(method: "loess", span: 0.65, color: "red", width: 3) | labs(title: "Height vs Weight", subtitle: "LOESS Fit") | theme_minimal()' --format svg > examples/smooth_loess.svg
+
 # Reverse Scale (Note: scales come LAST in parsing order)
 echo "Generating scale_reverse.svg..."
 cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Reverse Time Axis") | scale_x_reverse()' --format svg > examples/scale_reverse.svg
@@ -91,7 +95,15 @@ cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series
 
 # Dark Theme Example
 echo "Generating theme_dark.svg..."
-cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Dark Theme Example") | theme(plot_background: element_rect(fill: "#1a1a2e"), panel_background: element_rect(fill: "#16213e"), text: element_text(color: "#eaeaea"), axis_text: element_text(color: "#a0a0a0"), panel_grid_minor: element_line(color: "#6e6e6e", width: 0.5), panel_grid_major: element_line(color: "white", width: 0.5), axis_line: element_line(color: "#ffffff", width: 1))' --format svg > examples/theme_dark.svg
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | labs(title: "Dark Theme Example") | theme_dark()' --format svg > examples/theme_dark.svg
+
+# Classic Theme Example
+echo "Generating theme_classic.svg..."
+cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_classic()' --format svg > examples/theme_classic.svg
+
+# Custom Legend Configuration
+echo "Generating legend_custom.svg..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line(width: 3) | point(size: 4) | labs(title: "Custom Legend") | theme(legend_position: "bottom", legend_text: element_text(size: 14, color: "#222222"), legend_background: element_rect(fill: "#F7F7F7", color: "#333333", width: 1), legend_margin: 6, legend_key_size: 22)' --format svg > examples/legend_custom.svg
 
 # Merged Themes (theme_minimal + customization)
 echo "Generating theme_merged.svg..."

@@ -97,7 +97,11 @@ pub struct Theme {
     pub axis_ticks: ThemeElement,
 
     // Legend
-    pub legend_position: LegendPosition,
+    pub legend_position: Option<LegendPosition>,
+    pub legend_background: ThemeElement,
+    pub legend_text: ThemeElement,
+    pub legend_margin: Option<f64>,
+    pub legend_key_size: Option<f64>,
 }
 
 impl Default for Theme {
@@ -114,7 +118,11 @@ impl Default for Theme {
             axis_text: ThemeElement::Inherit,
             axis_line: ThemeElement::Inherit,
             axis_ticks: ThemeElement::Inherit,
-            legend_position: LegendPosition::UpperRight,
+            legend_position: None,
+            legend_background: ThemeElement::Inherit,
+            legend_text: ThemeElement::Inherit,
+            legend_margin: None,
+            legend_key_size: None,
         }
     }
 }
@@ -209,7 +217,7 @@ pub enum Stat {
     Identity,
     Bin { bins: usize },
     Count,
-    Smooth { method: String },
+    Smooth { method: String, span: Option<f64>, samples: Option<usize> },
     Boxplot,
     Violin { draw_quantiles: Vec<f64> },
     Density { bw: Option<f64> },

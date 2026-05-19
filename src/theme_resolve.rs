@@ -11,7 +11,8 @@
 //!
 //! rect
 //! ├── plot_background
-//! └── panel_background
+//! ├── panel_background
+//! └── legend_background
 //!
 //! line
 //! ├── axis_line
@@ -84,6 +85,10 @@ pub struct ResolvedTheme {
     pub axis_line: Option<ResolvedLine>,         // None if Blank
     pub axis_ticks: Option<ResolvedLine>,        // None if Blank
     pub legend_position: LegendPosition,
+    pub legend_background: Option<ResolvedRect>, // None if Blank
+    pub legend_text: ResolvedText,
+    pub legend_margin: f64,
+    pub legend_key_size: f64,
     /// True if user explicitly customized theme (vs using all defaults)
     pub has_customization: bool,
 }
@@ -228,7 +233,12 @@ impl Theme {
             || self.panel_grid_minor != ThemeElement::Inherit
             || self.axis_text != ThemeElement::Inherit
             || self.axis_line != ThemeElement::Inherit
-            || self.axis_ticks != ThemeElement::Inherit;
+            || self.axis_ticks != ThemeElement::Inherit
+            || self.legend_position.is_some()
+            || self.legend_background != ThemeElement::Inherit
+            || self.legend_text != ThemeElement::Inherit
+            || self.legend_margin.is_some()
+            || self.legend_key_size.is_some();
 
         // Resolve root element defaults
         let base_text = self.resolve_base_text();
@@ -240,6 +250,7 @@ impl Theme {
         let panel_background = self.resolve_rect_element(&self.panel_background, &base_rect);
         let plot_title = self.resolve_text_element(&self.plot_title, &base_text);
         let axis_text = self.resolve_text_element(&self.axis_text, &base_text);
+        let legend_text = self.resolve_text_element(&self.legend_text, &base_text);
 
         // Resolve line elements (can be Blank)
         let axis_line = self.resolve_optional_line(&self.axis_line, &base_line);
@@ -248,6 +259,7 @@ impl Theme {
         // Grid lines have their own inheritance: panel_grid_minor -> panel_grid_major -> line
         let panel_grid_major = self.resolve_optional_line(&self.panel_grid_major, &base_line);
         let panel_grid_minor = self.resolve_grid_minor(&panel_grid_major);
+        let legend_background = self.resolve_legend_background(&panel_background, &legend_text);
 
         ResolvedTheme {
             plot_background,
@@ -258,7 +270,11 @@ impl Theme {
             axis_text,
             axis_line,
             axis_ticks,
-            legend_position: self.legend_position.clone(),
+            legend_position: self.legend_position.clone().unwrap_or_default(),
+            legend_background,
+            legend_text,
+            legend_margin: self.legend_margin.unwrap_or(10.0),
+            legend_key_size: self.legend_key_size.unwrap_or(30.0),
             has_customization,
         }
     }
@@ -353,6 +369,32 @@ impl Theme {
                 })
             }
             _ => major.clone(),
+        }
+    }
+
+    /// Resolve legend background. By default it follows the panel background
+    /// and uses legend text color for the border.
+    fn resolve_legend_background(
+        &self,
+        panel_background: &ResolvedRect,
+        legend_text: &ResolvedText,
+    ) -> Option<ResolvedRect> {
+        match &self.legend_background {
+            ThemeElement::Blank => None,
+            ThemeElement::Rect(r) => {
+                let mut resolved = ResolvedRect {
+                    fill: panel_background.fill,
+                    border_color: Some(legend_text.color),
+                    border_width: 1.0,
+                };
+                apply_rect_overrides(&mut resolved, r);
+                Some(resolved)
+            }
+            _ => Some(ResolvedRect {
+                fill: panel_background.fill,
+                border_color: Some(legend_text.color),
+                border_width: 1.0,
+            }),
         }
     }
 }
