@@ -100,7 +100,10 @@ pub fn extract_column(data: &CsvData, selector: ColumnSelector) -> Result<(Strin
     Ok((column_name, values))
 }
 
-pub fn extract_column_as_string(data: &CsvData, selector: ColumnSelector) -> Result<(String, Vec<String>)> {
+pub fn extract_column_as_string(
+    data: &CsvData,
+    selector: ColumnSelector,
+) -> Result<(String, Vec<String>)> {
     let (column_index, column_name) = match selector {
         ColumnSelector::Index(idx) => {
             if idx >= data.headers.len() {
@@ -152,9 +155,7 @@ mod tests {
     /// Helper function to create CsvData from string
     fn csv_from_string(content: &str) -> Result<CsvData> {
         let cursor = Cursor::new(content);
-        let mut reader = ReaderBuilder::new()
-            .has_headers(true)
-            .from_reader(cursor);
+        let mut reader = ReaderBuilder::new().has_headers(true).from_reader(cursor);
 
         let headers = reader
             .headers()
@@ -228,7 +229,8 @@ mod tests {
     #[test]
     fn test_extract_column_case_insensitive() {
         let csv = csv_from_string("temperature,humidity\n20.5,60\n22.0,55").unwrap();
-        let (name, values) = extract_column(&csv, ColumnSelector::Name("Temperature".to_string())).unwrap();
+        let (name, values) =
+            extract_column(&csv, ColumnSelector::Name("Temperature".to_string())).unwrap();
         assert_eq!(name, "temperature"); // Returns actual header case
         assert_eq!(values, vec![20.5, 22.0]);
     }
@@ -303,7 +305,10 @@ mod tests {
         // This will fail at CSV reading, not column extraction
         let result = csv_from_string("x,y\n");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("at least one data row"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("at least one data row"));
     }
 
     // read_csv_from_stdin tests (6 tests using csv_from_string helper)
@@ -321,7 +326,10 @@ mod tests {
     fn test_read_csv_empty_data() {
         let result = csv_from_string("x,y\n");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("at least one data row"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("at least one data row"));
     }
 
     #[test]

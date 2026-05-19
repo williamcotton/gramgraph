@@ -1,13 +1,10 @@
-use anyhow::Result;
-use crate::parser::ast::{PlotSpec, Layer, Aesthetics, AestheticValue};
 use crate::data::PlotData;
-use crate::ir::{ResolvedSpec, ResolvedLayer, ResolvedAesthetics, ResolvedFacet};
+use crate::ir::{ResolvedAesthetics, ResolvedFacet, ResolvedLayer, ResolvedSpec};
+use crate::parser::ast::{AestheticValue, Aesthetics, Layer, PlotSpec};
+use anyhow::Result;
 
 /// Resolve all aesthetic mappings for the entire plot
-pub fn resolve_plot_aesthetics(
-    spec: &PlotSpec,
-    _data: &PlotData,
-) -> Result<ResolvedSpec> {
+pub fn resolve_plot_aesthetics(spec: &PlotSpec, _data: &PlotData) -> Result<ResolvedSpec> {
     // 0. Resolve global aesthetics (simple clone now)
     let resolved_aes = spec.aesthetics.clone();
 
@@ -85,7 +82,13 @@ fn resolve_layer_aesthetics(
     // Resolve shape mapping (point only)
     let shape = match layer {
         Layer::Point(p) => extract_mapped_string(&p.shape),
-        Layer::Line(_) | Layer::Bar(_) | Layer::Ribbon(_) | Layer::Boxplot(_) | Layer::Violin(_) | Layer::Density(_) | Layer::Heatmap(_) => None,
+        Layer::Line(_)
+        | Layer::Bar(_)
+        | Layer::Ribbon(_)
+        | Layer::Boxplot(_)
+        | Layer::Violin(_)
+        | Layer::Density(_)
+        | Layer::Heatmap(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.shape.clone()));
 
@@ -136,7 +139,10 @@ fn resolve_layer_aesthetics(
 }
 
 /// Resolve x and y aesthetics
-fn resolve_positional(layer: &Layer, global_aes: &Option<Aesthetics>) -> Result<(String, Option<String>)> {
+fn resolve_positional(
+    layer: &Layer,
+    global_aes: &Option<Aesthetics>,
+) -> Result<(String, Option<String>)> {
     let (x_override, y_override) = match layer {
         Layer::Line(l) => (l.x.as_ref(), l.y.as_ref()),
         Layer::Point(p) => (p.x.as_ref(), p.y.as_ref()),
@@ -166,21 +172,28 @@ fn resolve_positional(layer: &Layer, global_aes: &Option<Aesthetics>) -> Result<
         // y is optional for some layers (e.g. histogram)
         None
     };
-    
+
     // Validation: Check if y is required but missing
     if y_col.is_none() {
         match layer {
-            Layer::Bar(b) if matches!(b.stat, crate::parser::ast::Stat::Bin { .. } | crate::parser::ast::Stat::Count) => {
+            Layer::Bar(b)
+                if matches!(
+                    b.stat,
+                    crate::parser::ast::Stat::Bin { .. } | crate::parser::ast::Stat::Count
+                ) =>
+            {
                 // Allowed
-            },
+            }
             Layer::Ribbon(_) => {
                 // Allowed (uses ymin/ymax)
-            },
+            }
             Layer::Density(_) => {
                 // Allowed (density computes y from x via KDE)
-            },
+            }
             _ => {
-                 anyhow::bail!("No y aesthetic specified (use aes(x: ..., y: ...) or layer-level y: ...)");
+                anyhow::bail!(
+                    "No y aesthetic specified (use aes(x: ..., y: ...) or layer-level y: ...)"
+                );
             }
         }
     }
@@ -207,8 +220,8 @@ fn extract_mapped_string_from_f64(value: &Option<AestheticValue<f64>>) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::ast::{Aesthetics, Layer, LineLayer, PointLayer, PlotSpec};
     use crate::data::PlotData;
+    use crate::parser::ast::{Aesthetics, Layer, LineLayer, PlotSpec, PointLayer};
 
     fn make_data() -> PlotData {
         PlotData {

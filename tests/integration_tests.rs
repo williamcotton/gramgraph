@@ -107,8 +107,60 @@ time,temp
 
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let svg = result.unwrap();
-    assert!(svg.contains("May 18 00:00"), "SVG did not contain formatted datetime tick: {}", svg);
-    assert!(!svg.contains("2026-05-18T00:00"), "SVG still contained the raw ISO timestamp");
+    assert!(
+        svg.contains("May 18 00:00"),
+        "SVG did not contain formatted datetime tick: {}",
+        svg
+    );
+    assert!(
+        !svg.contains("2026-05-18T00:00"),
+        "SVG still contained the raw ISO timestamp"
+    );
+}
+
+#[test]
+fn test_end_to_end_log10_scale_formats_original_values() {
+    let csv = "\
+x,y
+1,1
+10,2
+100,3
+1000,4
+";
+    let result = run_gramgraph_svg(
+        r#"aes(x: x, y: y) | point(shape: "triangle", size: 7) | scale_x_log10()"#,
+        csv,
+    );
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(
+        svg.contains("\n1000\n"),
+        "SVG did not contain original-value log tick labels: {}",
+        svg
+    );
+}
+
+#[test]
+fn test_end_to_end_sqrt_scale() {
+    let csv = "\
+x,y
+0,1
+25,3
+100,5
+";
+    let result = run_gramgraph_svg(
+        r#"aes(x: x, y: y) | point(shape: "diamond", size: 7) | scale_x_sqrt()"#,
+        csv,
+    );
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(
+        svg.contains("\n100\n"),
+        "SVG did not contain sqrt-scale tick labels: {}",
+        svg
+    );
 }
 
 #[test]
@@ -173,7 +225,10 @@ fn test_end_to_end_non_numeric_data() {
     // This allows line charts with categorical x-axis (like ggplot2)
     let csv = fs::read_to_string("fixtures/mixed_types.csv").expect("Failed to read test CSV");
     let result = run_gramgraph("aes(x: x, y: y) | line()", &csv);
-    assert!(result.is_ok(), "Unified renderer handles mixed types by using categorical scale");
+    assert!(
+        result.is_ok(),
+        "Unified renderer handles mixed types by using categorical scale"
+    );
 }
 
 #[test]
@@ -228,7 +283,8 @@ fn test_end_to_end_styled_layers() {
 
 #[test]
 fn test_end_to_end_grouped_line_by_color() {
-    let csv = fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
+    let csv =
+        fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
     let result = run_gramgraph("aes(x: time, y: sales, color: region) | line()", &csv);
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
@@ -240,7 +296,10 @@ fn test_end_to_end_grouped_line_by_color() {
 #[test]
 fn test_end_to_end_grouped_scatter_by_color() {
     let csv = fs::read_to_string("fixtures/iris.csv").expect("Failed to read test CSV");
-    let result = run_gramgraph("aes(x: sepal_length, y: sepal_width, color: species) | point()", &csv);
+    let result = run_gramgraph(
+        "aes(x: sepal_length, y: sepal_width, color: species) | point()",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
@@ -248,8 +307,21 @@ fn test_end_to_end_grouped_scatter_by_color() {
 
 #[test]
 fn test_end_to_end_grouped_with_size() {
-    let csv = fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
+    let csv =
+        fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
     let result = run_gramgraph("aes(x: time, y: sales, size: region) | point()", &csv);
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let png_bytes = result.unwrap();
+    assert!(is_valid_png(&png_bytes));
+}
+
+#[test]
+fn test_end_to_end_grouped_with_shape_and_alpha() {
+    let csv = fs::read_to_string("fixtures/iris.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph(
+        "aes(x: sepal_length, y: sepal_width, shape: species, alpha: species) | point(size: 7)",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
@@ -259,8 +331,12 @@ fn test_end_to_end_grouped_with_size() {
 
 #[test]
 fn test_end_to_end_facet_wrap_basic() {
-    let csv = fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
-    let result = run_gramgraph("aes(x: time, y: sales) | line() | facet_wrap(by: region)", &csv);
+    let csv =
+        fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph(
+        "aes(x: time, y: sales) | line() | facet_wrap(by: region)",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
@@ -271,7 +347,10 @@ fn test_end_to_end_facet_wrap_basic() {
 #[test]
 fn test_end_to_end_facet_wrap_scatter() {
     let csv = fs::read_to_string("fixtures/iris.csv").expect("Failed to read test CSV");
-    let result = run_gramgraph("aes(x: sepal_length, y: sepal_width) | point() | facet_wrap(by: species)", &csv);
+    let result = run_gramgraph(
+        "aes(x: sepal_length, y: sepal_width) | point() | facet_wrap(by: species)",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
@@ -279,8 +358,12 @@ fn test_end_to_end_facet_wrap_scatter() {
 
 #[test]
 fn test_end_to_end_facet_with_ncol() {
-    let csv = fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
-    let result = run_gramgraph("aes(x: time, y: sales) | line() | facet_wrap(by: region, ncol: 2)", &csv);
+    let csv =
+        fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph(
+        "aes(x: time, y: sales) | line() | facet_wrap(by: region, ncol: 2)",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
@@ -290,8 +373,12 @@ fn test_end_to_end_facet_with_ncol() {
 
 #[test]
 fn test_end_to_end_facet_plus_grouping() {
-    let csv = fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
-    let result = run_gramgraph("aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region)", &csv);
+    let csv =
+        fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph(
+        "aes(x: time, y: sales, color: product) | line() | facet_wrap(by: region)",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));
@@ -299,8 +386,12 @@ fn test_end_to_end_facet_plus_grouping() {
 
 #[test]
 fn test_end_to_end_multiple_layers_grouped() {
-    let csv = fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
-    let result = run_gramgraph("aes(x: time, y: sales, color: region) | line() | point()", &csv);
+    let csv =
+        fs::read_to_string("fixtures/multiregion_sales.csv").expect("Failed to read test CSV");
+    let result = run_gramgraph(
+        "aes(x: time, y: sales, color: region) | line() | point()",
+        &csv,
+    );
     assert!(result.is_ok(), "Failed: {:?}", result.err());
     let png_bytes = result.unwrap();
     assert!(is_valid_png(&png_bytes));

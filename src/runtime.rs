@@ -1,14 +1,10 @@
-use anyhow::Result;
-use crate::parser::ast::PlotSpec;
 use crate::data::PlotData;
-use crate::{resolve, transform, scale, compiler, graph, RenderOptions};
+use crate::parser::ast::PlotSpec;
+use crate::{compiler, graph, resolve, scale, transform, RenderOptions};
+use anyhow::Result;
 
 /// Render a plot specification to PNG bytes using the Ideal GoG Pipeline
-pub fn render_plot(
-    spec: PlotSpec,
-    data: PlotData,
-    options: RenderOptions,
-) -> Result<Vec<u8>> {
+pub fn render_plot(spec: PlotSpec, data: PlotData, options: RenderOptions) -> Result<Vec<u8>> {
     // Check for empty data (maintain legacy behavior for tests)
     if data.rows.is_empty() {
         anyhow::bail!("Plot requires at least one data row");

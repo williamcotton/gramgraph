@@ -20,10 +20,6 @@ pub mod scale;
 
 pub mod theme;
 
-
-
-
-
 // Public API re-exports
 pub use ast::{Aesthetics, Facet, FacetScales, Layer, LineLayer, PlotSpec, PointLayer};
 pub use facet::parse_facet_wrap;

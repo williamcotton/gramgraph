@@ -9,7 +9,7 @@ GramGraph implements a **Grammar of Graphics** approach to data visualization, s
 - **Geometries**: Visual representations (line, point, bar, etc.)
 - **Layers**: Independent, composable visualization layers
 - **Statistics**: Data transformations (binning, smoothing, counting)
-- **Scales & Coordinates**: Data mapping to visual space (log, reverse, flip)
+- **Scales & Coordinates**: Data mapping to visual space (log, square root, reverse, flip)
 
 This architecture enables powerful, declarative chart specifications with clean composition semantics.
 
@@ -19,12 +19,12 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 - **Core Geometries**: `line()`, `point()`, `bar()`, `ribbon()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
 - **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression and LOESS), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
-- **Data-Driven Aesthetics**: Automatic grouping by color, size, shape, or alpha with legends
+- **Data-Driven Aesthetics**: Automatic grouping by color, size, rendered point shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
 - **Layer Composition**: Multiple geometries on shared coordinate space
 - **Bar/Boxplot Positioning**: Smart dodging (occupancy-based) for categorical axes
 - **Statistical Transformations**: `bin`, `count`, `smooth`, `boxplot` (5-number summary + outliers), `density` (Gaussian KDE), `heatmap` (2D binning)
-- **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`
+- **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`, `scale_x_sqrt()`, `scale_y_sqrt()`
 - **Nice Ticks**: D3-style algorithm snaps numeric axis domains to clean boundaries and generates human-friendly tick positions (0, 1, 2... or 0, 5, 10...)
 - **Coordinates**: `coord_flip()` for horizontal charts
 - **Visual Customization**: `labs()` for titles/labels, `theme_minimal()`, `theme_dark()`, and `theme_classic()` presets
@@ -122,6 +122,11 @@ cat data.csv | gramgraph 'aes(x: value) | density() | labs(title: "Distribution"
 cat demographics.csv | gramgraph 'aes(x: height, color: gender) | density(alpha: 0.4) | labs(title: "Height by Gender") | theme_minimal()'
 ```
 
+**Shape and Alpha Mapping:**
+```bash
+cat demographics.csv | gramgraph 'aes(x: height, y: weight, shape: gender, alpha: gender) | point(size: 7, color: "steelblue") | theme_minimal()'
+```
+
 **Heatmap (Categorical):**
 ```bash
 cat heatmap_data.csv | gramgraph 'aes(x: x, y: y, fill: value) | heatmap() | theme_minimal()'
@@ -142,6 +147,12 @@ cat data.csv | gramgraph 'aes(x: time, y: mean, ymin: lower, ymax: upper) | ribb
 cat data.csv | gramgraph 'aes(x: depth, y: pressure) | line() | labs(title: "Depth Profile") | theme_minimal() | scale_x_reverse()'
 ```
 
+**Log10 and Square Root Scales:**
+```bash
+cat data.csv | gramgraph 'aes(x: x, y: value) | line() | point(shape: "triangle") | theme_minimal() | scale_x_log10()'
+cat data.csv | gramgraph 'aes(x: x, y: value) | line() | point(shape: "diamond") | theme_minimal() | scale_x_sqrt()'
+```
+
 **Variable Injection:**
 ```bash
 # Variables in aesthetics and labels
@@ -160,7 +171,7 @@ Defines global aesthetic mappings.
 
 #### Geometries
 - `line(...)`: Line chart.
-- `point(...)`: Scatter plot.
+- `point(...)`: Scatter plot. Supports fixed or mapped `shape` values such as `"circle"`, `"square"`, `"triangle"`, `"diamond"`, `"cross"`, `"x"`, and `"star"`.
 - `bar(...)`: Bar chart. Supports `position: "dodge" | "stack" | "identity"`.
 - `boxplot(...)`: Box and whisker plot with automatic outlier detection.
 - `violin(...)`: Violin plot using Kernel Density Estimation (KDE). Supports `draw_quantiles: [0.25, 0.5, 0.75]`.
@@ -183,7 +194,10 @@ Swaps X and Y axes. Useful for horizontal bar charts.
 #### Scales
 - `scale_x_reverse()`, `scale_y_reverse()`
 - `scale_x_log10()`, `scale_y_log10()`
+- `scale_x_sqrt()`, `scale_y_sqrt()`
 - `xlim(min, max)`, `ylim(min, max)`
+
+Log10 scales require positive values. Square root scales require non-negative values. Transformed axes render data in transformed space while tick labels show the original data values.
 
 **Nice Ticks (automatic):** Numeric axes use a D3-style algorithm to snap domain boundaries to clean values and produce human-friendly tick positions. The algorithm picks step sizes from the series 1, 2, 5 × 10^n. For example, data ranging from 0.37 to 11.73 produces ticks at 0, 1, 2, ..., 12 instead of ugly values like 0.37, 2.15, etc. When `xlim()`/`ylim()` are specified, nice ticks are computed within those exact limits without expanding the domain. Categorical axes (bar, boxplot, violin) are unaffected.
 

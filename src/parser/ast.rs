@@ -40,8 +40,8 @@ pub struct ElementLine {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ElementRect {
     pub fill: Option<String>,
-    pub color: Option<String>,  // Border color
-    pub width: Option<f64>,     // Border width
+    pub color: Option<String>, // Border color
+    pub width: Option<f64>,    // Border width
 }
 
 /// Text element styling (for labels, titles)
@@ -50,10 +50,10 @@ pub struct ElementText {
     pub family: Option<String>,
     pub color: Option<String>,
     pub size: Option<f64>,
-    pub face: Option<String>,   // "plain", "bold", "italic"
+    pub face: Option<String>, // "plain", "bold", "italic"
     pub angle: Option<f64>,
-    pub hjust: Option<f64>,     // Horizontal justification (0.0 - 1.0)
-    pub vjust: Option<f64>,     // Vertical justification (0.0 - 1.0)
+    pub hjust: Option<f64>, // Horizontal justification (0.0 - 1.0)
+    pub vjust: Option<f64>, // Vertical justification (0.0 - 1.0)
 }
 
 /// Theme element wrapper - can be a specific element type, blank, or inherit from parent
@@ -215,13 +215,25 @@ pub enum AestheticValue<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stat {
     Identity,
-    Bin { bins: usize },
+    Bin {
+        bins: usize,
+    },
     Count,
-    Smooth { method: String, span: Option<f64>, samples: Option<usize> },
+    Smooth {
+        method: String,
+        span: Option<f64>,
+        samples: Option<usize>,
+    },
     Boxplot,
-    Violin { draw_quantiles: Vec<f64> },
-    Density { bw: Option<f64> },
-    Heatmap { bins: Option<usize> },
+    Violin {
+        draw_quantiles: Vec<f64>,
+    },
+    Density {
+        bw: Option<f64>,
+    },
+    Heatmap {
+        bins: Option<usize>,
+    },
 }
 
 impl Default for Stat {
@@ -336,7 +348,7 @@ pub struct BoxplotLayer {
     pub color: Option<AestheticValue<String>>, // Border color
     pub fill: Option<AestheticValue<String>>,  // Fill color
     pub alpha: Option<AestheticValue<f64>>,
-    pub width: Option<AestheticValue<f64>>,    // Box width
+    pub width: Option<AestheticValue<f64>>, // Box width
 
     // Outlier properties
     pub outlier_color: Option<String>,
@@ -355,10 +367,10 @@ pub struct ViolinLayer {
     // Visual properties
     pub color: Option<AestheticValue<String>>,
     pub alpha: Option<AestheticValue<f64>>,
-    pub width: Option<AestheticValue<f64>>,    // Violin width (0.0-1.0)
+    pub width: Option<AestheticValue<f64>>, // Violin width (0.0-1.0)
 
     // Violin-specific options
-    pub draw_quantiles: Vec<f64>,  // Quantile lines to draw inside violin (e.g., [0.25, 0.5, 0.75])
+    pub draw_quantiles: Vec<f64>, // Quantile lines to draw inside violin (e.g., [0.25, 0.5, 0.75])
 }
 
 /// Density geometry layer (KDE-based density curve)
@@ -371,7 +383,7 @@ pub struct DensityLayer {
     // Visual properties
     pub color: Option<AestheticValue<String>>,
     pub alpha: Option<AestheticValue<f64>>,
-    pub bw: Option<f64>,  // Bandwidth (None = auto via Silverman's rule)
+    pub bw: Option<f64>, // Bandwidth (None = auto via Silverman's rule)
 }
 
 /// Heatmap geometry layer (2D tile plot with color-mapped values)

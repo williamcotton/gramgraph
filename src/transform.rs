@@ -1,12 +1,14 @@
-use anyhow::{anyhow, Context, Result};
-use std::collections::{HashMap, HashSet};
 use crate::data::PlotData;
 use crate::datetime::parse_datetime_value;
-use crate::ir::{RenderData, PanelData, LayerData, GroupData, FacetLayout, RenderStyle};
-use crate::ir::{ResolvedSpec, ResolvedLayer, ResolvedAesthetics, ResolvedFacet};
-use crate::parser::ast::{AxisScale, Layer, BarPosition, ScaleType, Stat};
-use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, ViolinStyle, DensityStyle, HeatmapStyle};
-use crate::palette::{ColorPalette, SizePalette, ShapePalette};
+use crate::graph::{
+    BarStyle, DensityStyle, HeatmapStyle, LineStyle, PointStyle, RibbonStyle, ViolinStyle,
+};
+use crate::ir::{FacetLayout, GroupData, LayerData, PanelData, RenderData, RenderStyle};
+use crate::ir::{ResolvedAesthetics, ResolvedFacet, ResolvedLayer, ResolvedSpec};
+use crate::palette::{AlphaPalette, ColorPalette, ShapePalette, SizePalette};
+use crate::parser::ast::{AxisScale, BarPosition, Layer, ScaleType, Stat};
+use anyhow::{anyhow, Context, Result};
+use std::collections::{HashMap, HashSet};
 
 /// Main entry point: Transform resolved spec and CSV data into renderable data
 pub fn apply_transformations(spec: &ResolvedSpec, data: &PlotData) -> Result<RenderData> {
@@ -43,7 +45,9 @@ struct DataPartition {
 fn partition_data(spec: &ResolvedSpec, data: &PlotData) -> Result<Vec<DataPartition>> {
     if let Some(facet) = &spec.facet {
         // Find facet column index
-        let col_idx = data.headers.iter()
+        let col_idx = data
+            .headers
+            .iter()
             .position(|h| h.eq_ignore_ascii_case(&facet.col))
             .ok_or_else(|| anyhow!("Facet column '{}' not found", facet.col))?;
 
@@ -94,7 +98,11 @@ fn calculate_grid_dimensions(n_panels: usize, facet: Option<&ResolvedFacet>) -> 
 }
 
 /// Process a single data partition (Panel)
-fn process_partition(index: usize, partition: DataPartition, spec: &ResolvedSpec) -> Result<PanelData> {
+fn process_partition(
+    index: usize,
+    partition: DataPartition,
+    spec: &ResolvedSpec,
+) -> Result<PanelData> {
     let mut layers = Vec::new();
 
     for layer_spec in &spec.layers {
@@ -102,10 +110,7 @@ fn process_partition(index: usize, partition: DataPartition, spec: &ResolvedSpec
         layers.push(layer_data);
     }
 
-    Ok(PanelData {
-        index,
-        layers,
-    })
+    Ok(PanelData { index, layers })
 }
 
 /// Process a single layer: Extract, Group, Stack
@@ -117,7 +122,9 @@ fn process_layer(
     let aes = &layer_spec.aesthetics;
 
     // 1. Identify Grouping Column
-    let group_col = aes.color.as_ref()
+    let group_col = aes
+        .color
+        .as_ref()
         .or(aes.size.as_ref())
         .or(aes.shape.as_ref())
         .or(aes.alpha.as_ref());
@@ -125,14 +132,31 @@ fn process_layer(
     // 2. Extract Data (Grouped)
     // We return a map: GroupKey -> (RawX, RawY, RawYMin, RawYMax)
     // RawX is String to handle both numeric and categorical initially
-    let mut raw_groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)> = HashMap::new();
+    let mut raw_groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)> =
+        HashMap::new();
 
     // Column Indices
     let x_idx = find_col_index(&data.headers, &aes.x_col)?;
-    let y_idx = if let Some(y) = &aes.y_col { Some(find_col_index(&data.headers, y)?) } else { None };
-    let ymin_idx = if let Some(col) = &aes.ymin_col { Some(find_col_index(&data.headers, col)?) } else { None };
-    let ymax_idx = if let Some(col) = &aes.ymax_col { Some(find_col_index(&data.headers, col)?) } else { None };
-    let fill_idx = if let Some(col) = &aes.fill { Some(find_col_index(&data.headers, col)?) } else { None };
+    let y_idx = if let Some(y) = &aes.y_col {
+        Some(find_col_index(&data.headers, y)?)
+    } else {
+        None
+    };
+    let ymin_idx = if let Some(col) = &aes.ymin_col {
+        Some(find_col_index(&data.headers, col)?)
+    } else {
+        None
+    };
+    let ymax_idx = if let Some(col) = &aes.ymax_col {
+        Some(find_col_index(&data.headers, col)?)
+    } else {
+        None
+    };
+    let fill_idx = if let Some(col) = &aes.fill {
+        Some(find_col_index(&data.headers, col)?)
+    } else {
+        None
+    };
 
     let group_idx = if let Some(g) = group_col {
         Some(find_col_index(&data.headers, g)?)
@@ -158,7 +182,13 @@ fn process_layer(
                 }
             }
             // Preserve data appearance order (no alphabetical sort)
-            Some(unique_y.iter().enumerate().map(|(i, s)| (s.clone(), i as f64)).collect())
+            Some(
+                unique_y
+                    .iter()
+                    .enumerate()
+                    .map(|(i, s)| (s.clone(), i as f64))
+                    .collect(),
+            )
         } else {
             None
         }
@@ -173,18 +203,32 @@ fn process_layer(
                 // Categorical y for heatmap: use index
                 *cat_map.get(&row[idx]).unwrap_or(&0.0)
             } else {
-                row[idx].parse::<f64>().context(format!("Failed to parse Y value '{}'", row[idx]))?
+                row[idx]
+                    .parse::<f64>()
+                    .context(format!("Failed to parse Y value '{}'", row[idx]))?
             }
         } else {
             0.0 // Default for histogram if not provided
         };
         // For heatmap, repurpose ymin slot to carry fill values
         let ymin_val = if is_heatmap {
-            if let Some(idx) = fill_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 }
+            if let Some(idx) = fill_idx {
+                row[idx].parse::<f64>().unwrap_or(0.0)
+            } else {
+                0.0
+            }
         } else {
-            if let Some(idx) = ymin_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 }
+            if let Some(idx) = ymin_idx {
+                row[idx].parse::<f64>().unwrap_or(0.0)
+            } else {
+                0.0
+            }
         };
-        let ymax_val = if let Some(idx) = ymax_idx { row[idx].parse::<f64>().unwrap_or(0.0) } else { 0.0 };
+        let ymax_val = if let Some(idx) = ymax_idx {
+            row[idx].parse::<f64>().unwrap_or(0.0)
+        } else {
+            0.0
+        };
 
         let group_key = if let Some(idx) = group_idx {
             row[idx].clone()
@@ -192,7 +236,9 @@ fn process_layer(
             "default".to_string()
         };
 
-        let entry = raw_groups.entry(group_key).or_insert_with(|| (Vec::new(), Vec::new(), Vec::new(), Vec::new()));
+        let entry = raw_groups
+            .entry(group_key)
+            .or_insert_with(|| (Vec::new(), Vec::new(), Vec::new(), Vec::new()));
         entry.0.push(x_str);
         entry.1.push(y_val);
         entry.2.push(ymin_val);
@@ -210,18 +256,26 @@ fn process_layer(
     let is_violin = matches!(layer_spec.original_layer, Layer::Violin(_));
     let is_heatmap_layer = matches!(layer_spec.original_layer, Layer::Heatmap(_));
 
-    let all_x_strings: Vec<&String> = raw_groups.values().flat_map(|d| d.x.iter()).collect();
+    let sorted_group_keys = get_sorted_keys(&raw_groups);
+    let all_x_strings: Vec<&String> = sorted_group_keys
+        .iter()
+        .filter_map(|key| raw_groups.get(key))
+        .flat_map(|d| d.x.iter())
+        .collect();
     let all_numeric = all_x_strings.iter().all(|s| s.parse::<f64>().is_ok());
-    let use_datetime = x_scale_spec
-        .is_some_and(|scale| matches!(scale.scale_type, ScaleType::DateTime));
+    let use_datetime =
+        x_scale_spec.is_some_and(|scale| matches!(scale.scale_type, ScaleType::DateTime));
 
     // Heatmap with bins uses numeric x; categorical heatmap uses categorical x
     let heatmap_has_bins = match &layer_spec.original_layer {
-        Layer::Heatmap(_) => matches!(layer_spec.original_layer.stat(), Stat::Heatmap { bins } if bins.is_some()),
+        Layer::Heatmap(_) => {
+            matches!(layer_spec.original_layer.stat(), Stat::Heatmap { bins } if bins.is_some())
+        }
         _ => false,
     };
     let heatmap_numeric = is_heatmap_layer && heatmap_has_bins && all_numeric;
-    let use_categorical = !use_datetime && (is_bar || is_boxplot || is_violin || (!all_numeric && !heatmap_numeric));
+    let use_categorical =
+        !use_datetime && (is_bar || is_boxplot || is_violin || (!all_numeric && !heatmap_numeric));
 
     // 4. Normalize X Values
     // If categorical, we need a unified mapping for stacking/grouping
@@ -255,12 +309,11 @@ fn process_layer(
 
     // 5. Build Groups (Styles & Coordinates)
     let mut groups = Vec::new();
-    let sorted_group_keys = get_sorted_keys(&raw_groups);
-
     // Assign Palettes
     let color_map = ColorPalette::category10().assign_colors(&sorted_group_keys);
     let size_map = SizePalette::default_range().assign_sizes(&sorted_group_keys);
     let shape_map = ShapePalette::default_shapes().assign_shapes(&sorted_group_keys);
+    let alpha_map = AlphaPalette::default_range().assign_alphas(&sorted_group_keys);
 
     // Prepare for Stacking (if needed)
     let mut stack_offsets: HashMap<String, f64> = HashMap::new(); // Map "X_Key" -> Current Height
@@ -310,14 +363,21 @@ fn process_layer(
             x_floats.push(x_val);
 
             // Resolve Y (Stacking and Min/Max)
-            let stack_key = if use_categorical { x_s.clone() } else { x_val.to_string() };
+            let stack_key = if use_categorical {
+                x_s.clone()
+            } else {
+                x_val.to_string()
+            };
 
             let (y_start, y_end, y_min, y_max) = if is_stacked {
                 let start = *stack_offsets.get(&stack_key).unwrap_or(&0.0);
                 let end = start + y_val;
                 stack_offsets.insert(stack_key, end);
                 (start, end, start, end)
-            } else if matches!(layer_spec.original_layer, Layer::Ribbon(_)) || matches!(layer_spec.original_layer, Layer::Boxplot(_)) || matches!(layer_spec.original_layer, Layer::Violin(_)) {
+            } else if matches!(layer_spec.original_layer, Layer::Ribbon(_))
+                || matches!(layer_spec.original_layer, Layer::Boxplot(_))
+                || matches!(layer_spec.original_layer, Layer::Violin(_))
+            {
                 // Ribbon, Boxplot, and Violin use raw ymin/ymax
                 (raw_min, raw_max, raw_min, raw_max)
             } else {
@@ -337,11 +397,11 @@ fn process_layer(
                 y_q3s.push(bp.q3[i]);
                 outliers_vec.push(bp.outliers[i].clone());
             } else {
-                 // Fill defaults to keep vectors aligned
-                 y_q1s.push(0.0);
-                 y_medians.push(0.0);
-                 y_q3s.push(0.0);
-                 outliers_vec.push(vec![]);
+                // Fill defaults to keep vectors aligned
+                y_q1s.push(0.0);
+                y_medians.push(0.0);
+                y_q3s.push(0.0);
+                outliers_vec.push(vec![]);
             }
 
             // Collect violin stats if available
@@ -357,19 +417,35 @@ fn process_layer(
         }
 
         // Build Style
-        let style = build_style(key.clone(), &layer_spec.original_layer, aes, &color_map, &size_map, &shape_map, stat_data.heatmap.as_ref());
+        let style = build_style(
+            key.clone(),
+            &layer_spec.original_layer,
+            aes,
+            &color_map,
+            &size_map,
+            &shape_map,
+            &alpha_map,
+            stat_data.heatmap.as_ref(),
+        );
 
         // Extract heatmap data
         let (hm_y_pos, hm_fill, hm_cw, hm_ch, hm_y_cats) = if let Some(hm) = &stat_data.heatmap {
             // If we pre-mapped categorical y, use those categories
             let y_cats = if let Some(ref cat_map) = heatmap_y_cat_map {
-                let mut cats: Vec<(f64, String)> = cat_map.iter().map(|(s, &i)| (i, s.clone())).collect();
+                let mut cats: Vec<(f64, String)> =
+                    cat_map.iter().map(|(s, &i)| (i, s.clone())).collect();
                 cats.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
                 Some(cats.into_iter().map(|(_, s)| s).collect())
             } else {
                 hm.y_categories.clone()
             };
-            (hm.y_positions.clone(), hm.fill_values.clone(), hm.cell_width, hm.cell_height, y_cats)
+            (
+                hm.y_positions.clone(),
+                hm.fill_values.clone(),
+                hm.cell_width,
+                hm.cell_height,
+                y_cats,
+            )
         } else {
             (vec![], vec![], 0.0, 0.0, None)
         };
@@ -396,7 +472,11 @@ fn process_layer(
             heatmap_cell_width: hm_cw,
             heatmap_cell_height: hm_ch,
 
-            x_categories: if use_categorical { Some(category_order.clone()) } else { None },
+            x_categories: if use_categorical {
+                Some(category_order.clone())
+            } else {
+                None
+            },
             y_categories: hm_y_cats,
             style,
         });
@@ -405,7 +485,8 @@ fn process_layer(
     Ok(LayerData { groups })
 }
 fn find_col_index(headers: &[String], name: &str) -> Result<usize> {
-    headers.iter()
+    headers
+        .iter()
         .position(|h| h.eq_ignore_ascii_case(name))
         .ok_or_else(|| anyhow!("Column '{}' not found", name))
 }
@@ -423,41 +504,45 @@ fn build_style(
     color_map: &HashMap<String, String>,
     size_map: &HashMap<String, f64>,
     shape_map: &HashMap<String, String>,
+    alpha_map: &HashMap<String, f64>,
     heatmap_data: Option<&HeatmapData>,
 ) -> RenderStyle {
     // Helper to pick color: GroupMapped ?? Fixed ?? Default
-    let pick_color = |l_color: &Option<crate::parser::ast::AestheticValue<String>>| -> Option<String> {
-        if aes.color.is_some() && color_map.contains_key(&group_key) {
-             color_map.get(&group_key).cloned()
+    let pick_color =
+        |l_color: &Option<crate::parser::ast::AestheticValue<String>>| -> Option<String> {
+            if aes.color.is_some() && color_map.contains_key(&group_key) {
+                color_map.get(&group_key).cloned()
+            } else {
+                // Check fixed
+                match l_color {
+                    Some(crate::parser::ast::AestheticValue::Fixed(c)) => Some(c.clone()),
+                    _ => None,
+                }
+            }
+        };
+
+    // Helper to pick size/width
+    let pick_size = |l_val: &Option<crate::parser::ast::AestheticValue<f64>>| -> Option<f64> {
+        if aes.size.is_some() && size_map.contains_key(&group_key) {
+            size_map.get(&group_key).copied()
         } else {
-            // Check fixed
-            match l_color {
-                Some(crate::parser::ast::AestheticValue::Fixed(c)) => Some(c.clone()),
+            match l_val {
+                Some(crate::parser::ast::AestheticValue::Fixed(v)) => Some(*v),
                 _ => None,
             }
         }
     };
 
-    // Helper to pick size/width
-    let pick_size = |l_val: &Option<crate::parser::ast::AestheticValue<f64>>| -> Option<f64> {
-         if aes.size.is_some() && size_map.contains_key(&group_key) {
-             size_map.get(&group_key).copied()
-         } else {
-             match l_val {
-                 Some(crate::parser::ast::AestheticValue::Fixed(v)) => Some(*v),
-                 _ => None,
-             }
-         }
-    };
-
     // Helper to pick alpha
     let pick_alpha = |l_val: &Option<crate::parser::ast::AestheticValue<f64>>| -> Option<f64> {
-        // Alpha mapping not fully implemented in palettes yet, usually fixed
-        // If we added alpha palette, we would check aes.alpha.is_some() here
-         match l_val {
-             Some(crate::parser::ast::AestheticValue::Fixed(v)) => Some(*v),
-             _ => None,
-         }
+        if aes.alpha.is_some() && alpha_map.contains_key(&group_key) {
+            alpha_map.get(&group_key).copied()
+        } else {
+            match l_val {
+                Some(crate::parser::ast::AestheticValue::Fixed(v)) => Some(*v),
+                _ => None,
+            }
+        }
     };
 
     match layer {
@@ -510,7 +595,10 @@ fn build_style(
             // Calculate value range from heatmap data
             let (vmin, vmax) = if let Some(hm) = heatmap_data {
                 let min = hm.fill_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-                let max = hm.fill_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+                let max = hm
+                    .fill_values
+                    .iter()
+                    .fold(f64::NEG_INFINITY, |a, &b| a.max(b));
                 (min, max)
             } else {
                 (0.0, 1.0)
@@ -534,17 +622,17 @@ struct BoxplotData {
 
 #[derive(Debug, Clone)]
 struct ViolinData {
-    density: Vec<Vec<f64>>,           // Normalized density values (0-1) per x category
-    density_y: Vec<Vec<f64>>,         // Y coordinates for density curve per x category
-    quantile_values: Vec<Vec<f64>>,   // Computed Y values at requested quantiles per x category
+    density: Vec<Vec<f64>>,   // Normalized density values (0-1) per x category
+    density_y: Vec<Vec<f64>>, // Y coordinates for density curve per x category
+    quantile_values: Vec<Vec<f64>>, // Computed Y values at requested quantiles per x category
 }
 
 #[derive(Debug, Clone)]
 struct HeatmapData {
-    y_positions: Vec<f64>,    // Y position for each cell
-    fill_values: Vec<f64>,    // Fill value for color mapping
-    cell_width: f64,          // Cell width in data units
-    cell_height: f64,         // Cell height in data units
+    y_positions: Vec<f64>,             // Y position for each cell
+    fill_values: Vec<f64>,             // Fill value for color mapping
+    cell_width: f64,                   // Cell width in data units
+    cell_height: f64,                  // Cell height in data units
     y_categories: Option<Vec<String>>, // Y-axis categories (if categorical)
 }
 
@@ -574,7 +662,7 @@ impl StatData {
 }
 
 fn compute_boxplot_stat(
-    groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>
+    groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
 ) -> Result<HashMap<String, StatData>> {
     let mut new_groups = HashMap::new();
 
@@ -593,8 +681,8 @@ fn compute_boxplot_stat(
         unique_x.sort();
 
         let mut res_x = Vec::new();
-        let mut res_min = Vec::new();    // Lower whisker
-        let mut res_max = Vec::new();    // Upper whisker
+        let mut res_min = Vec::new(); // Lower whisker
+        let mut res_max = Vec::new(); // Upper whisker
         let mut res_q1 = Vec::new();
         let mut res_median = Vec::new();
         let mut res_q3 = Vec::new();
@@ -604,7 +692,9 @@ fn compute_boxplot_stat(
             let mut ys = x_groups[&x_val].clone();
             ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-            if ys.is_empty() { continue; }
+            if ys.is_empty() {
+                continue;
+            }
 
             let q1 = percentile(&ys, 0.25);
             let median = percentile(&ys, 0.50);
@@ -615,11 +705,23 @@ fn compute_boxplot_stat(
             let upper_fence = q3 + 1.5 * iqr;
 
             // Whiskers: Range of data within fences
-            let lower_whisker = ys.iter().filter(|&&v| v >= lower_fence).min_by(|a,b| a.partial_cmp(b).unwrap()).unwrap_or(&q1);
-            let upper_whisker = ys.iter().filter(|&&v| v <= upper_fence).max_by(|a,b| a.partial_cmp(b).unwrap()).unwrap_or(&q3);
+            let lower_whisker = ys
+                .iter()
+                .filter(|&&v| v >= lower_fence)
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(&q1);
+            let upper_whisker = ys
+                .iter()
+                .filter(|&&v| v <= upper_fence)
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(&q3);
 
             // Outliers
-            let outliers: Vec<f64> = ys.iter().filter(|&&v| v < lower_fence || v > upper_fence).cloned().collect();
+            let outliers: Vec<f64> = ys
+                .iter()
+                .filter(|&&v| v < lower_fence || v > upper_fence)
+                .cloned()
+                .collect();
 
             res_x.push(x_val);
             res_min.push(*lower_whisker);
@@ -635,20 +737,23 @@ fn compute_boxplot_stat(
         // Let's use median for Y so stacking/etc (if applied) does something sane-ish, though boxplots aren't usually stacked.
         let res_y = res_median.clone();
 
-        new_groups.insert(key, StatData {
-            x: res_x,
-            y: res_y,
-            ymin: res_min,
-            ymax: res_max,
-            boxplot: Some(BoxplotData {
-                q1: res_q1,
-                median: res_median,
-                q3: res_q3,
-                outliers: res_outliers,
-            }),
-            violin: None,
-            heatmap: None,
-        });
+        new_groups.insert(
+            key,
+            StatData {
+                x: res_x,
+                y: res_y,
+                ymin: res_min,
+                ymax: res_max,
+                boxplot: Some(BoxplotData {
+                    q1: res_q1,
+                    median: res_median,
+                    q3: res_q3,
+                    outliers: res_outliers,
+                }),
+                violin: None,
+                heatmap: None,
+            },
+        );
     }
 
     Ok(new_groups)
@@ -657,7 +762,9 @@ fn compute_boxplot_stat(
 /// Silverman's rule of thumb for bandwidth selection
 fn silverman_bandwidth(data: &[f64]) -> f64 {
     let n = data.len() as f64;
-    if n < 2.0 { return 1.0; }
+    if n < 2.0 {
+        return 1.0;
+    }
 
     let mean = data.iter().sum::<f64>() / n;
     let variance = data.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0);
@@ -671,8 +778,14 @@ fn silverman_bandwidth(data: &[f64]) -> f64 {
     let iqr = q3 - q1;
 
     // Silverman's rule: h = 0.9 * min(std, IQR/1.34) * n^(-1/5)
-    let scale = if iqr > 0.0 { std_dev.min(iqr / 1.34) } else { std_dev };
-    if scale <= 0.0 { return 1.0; }
+    let scale = if iqr > 0.0 {
+        std_dev.min(iqr / 1.34)
+    } else {
+        std_dev
+    };
+    if scale <= 0.0 {
+        return 1.0;
+    }
     0.9 * scale * n.powf(-0.2)
 }
 
@@ -684,10 +797,12 @@ fn gaussian_kernel(u: f64) -> f64 {
 
 /// Compute Gaussian KDE at grid points
 fn compute_kde(data: &[f64], bandwidth: f64) -> (Vec<f64>, Vec<f64>) {
-    const GRID_POINTS: usize = 128;  // Resolution of density curve
+    const GRID_POINTS: usize = 128; // Resolution of density curve
 
     let n = data.len() as f64;
-    if n == 0.0 { return (vec![], vec![]); }
+    if n == 0.0 {
+        return (vec![], vec![]);
+    }
 
     let min_y = data.iter().fold(f64::INFINITY, |a, &b| a.min(b));
     let max_y = data.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
@@ -698,7 +813,9 @@ fn compute_kde(data: &[f64], bandwidth: f64) -> (Vec<f64>, Vec<f64>) {
     let y_end = max_y + extend;
 
     let range = y_end - y_start;
-    if range <= 0.0 { return (vec![min_y], vec![1.0]); }
+    if range <= 0.0 {
+        return (vec![min_y], vec![1.0]);
+    }
 
     let step = range / (GRID_POINTS - 1) as f64;
     let mut grid_y = Vec::with_capacity(GRID_POINTS);
@@ -747,7 +864,7 @@ fn compute_violin_stat(
         unique_x.sort();
 
         let mut res_x = Vec::new();
-        let mut res_y = Vec::new();     // Will hold median for y
+        let mut res_y = Vec::new(); // Will hold median for y
         let mut res_min = Vec::new();
         let mut res_max = Vec::new();
         let mut density_vec = Vec::new();
@@ -756,7 +873,9 @@ fn compute_violin_stat(
 
         for x_val in unique_x {
             let ys = &x_groups[&x_val];
-            if ys.is_empty() { continue; }
+            if ys.is_empty() {
+                continue;
+            }
 
             let mut sorted_ys = ys.clone();
             sorted_ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -786,19 +905,22 @@ fn compute_violin_stat(
             quantile_values_vec.push(quantile_y_values);
         }
 
-        new_groups.insert(key, StatData {
-            x: res_x,
-            y: res_y,
-            ymin: res_min,
-            ymax: res_max,
-            boxplot: None,
-            violin: Some(ViolinData {
-                density: density_vec,
-                density_y: density_y_vec,
-                quantile_values: quantile_values_vec,
-            }),
-            heatmap: None,
-        });
+        new_groups.insert(
+            key,
+            StatData {
+                x: res_x,
+                y: res_y,
+                ymin: res_min,
+                ymax: res_max,
+                boxplot: None,
+                violin: Some(ViolinData {
+                    density: density_vec,
+                    density_y: density_y_vec,
+                    quantile_values: quantile_values_vec,
+                }),
+                heatmap: None,
+            },
+        );
     }
 
     Ok(new_groups)
@@ -813,18 +935,25 @@ fn compute_density_stat(
     let mut all_x_values: Vec<f64> = Vec::new();
     for (x_strs, _, _, _) in groups.values() {
         for s in x_strs {
-            let v = s.parse::<f64>().map_err(|_| anyhow!("Stat 'density' requires numeric x data"))?;
+            let v = s
+                .parse::<f64>()
+                .map_err(|_| anyhow!("Stat 'density' requires numeric x data"))?;
             all_x_values.push(v);
         }
     }
 
     if all_x_values.is_empty() {
-        return Ok(groups.into_iter().map(|(k, v)| (k, StatData::from_tuple(v))).collect());
+        return Ok(groups
+            .into_iter()
+            .map(|(k, v)| (k, StatData::from_tuple(v)))
+            .collect());
     }
 
     // Use shared range for all groups so density curves align
     let global_min = all_x_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-    let global_max = all_x_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+    let global_max = all_x_values
+        .iter()
+        .fold(f64::NEG_INFINITY, |a, &b| a.max(b));
 
     let mut new_groups = HashMap::new();
 
@@ -834,7 +963,9 @@ fn compute_density_stat(
             x_floats.push(s.parse::<f64>().unwrap());
         }
 
-        if x_floats.is_empty() { continue; }
+        if x_floats.is_empty() {
+            continue;
+        }
 
         // Compute bandwidth
         let bandwidth = bw_override.unwrap_or_else(|| silverman_bandwidth(&x_floats));
@@ -849,12 +980,15 @@ fn compute_density_stat(
         let range = x_end - x_start;
 
         if range <= 0.0 {
-            new_groups.insert(key, StatData::from_tuple((
-                vec![global_min.to_string()],
-                vec![1.0],
-                vec![0.0],
-                vec![1.0],
-            )));
+            new_groups.insert(
+                key,
+                StatData::from_tuple((
+                    vec![global_min.to_string()],
+                    vec![1.0],
+                    vec![0.0],
+                    vec![1.0],
+                )),
+            );
             continue;
         }
 
@@ -880,7 +1014,10 @@ fn compute_density_stat(
         let new_ymin: Vec<f64> = vec![0.0; grid_points];
         let new_ymax: Vec<f64> = density.clone();
 
-        new_groups.insert(key, StatData::from_tuple((new_x, density, new_ymin, new_ymax)));
+        new_groups.insert(
+            key,
+            StatData::from_tuple((new_x, density, new_ymin, new_ymax)),
+        );
     }
 
     Ok(new_groups)
@@ -888,8 +1025,12 @@ fn compute_density_stat(
 
 fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     let n = sorted_data.len();
-    if n == 0 { return 0.0; }
-    if n == 1 { return sorted_data[0]; }
+    if n == 0 {
+        return 0.0;
+    }
+    if n == 1 {
+        return sorted_data[0];
+    }
 
     let rank = p * (n - 1) as f64;
     let lower_idx = rank.floor() as usize;
@@ -932,7 +1073,11 @@ fn compute_heatmap_stat(
             let y_max_val = y_vals.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
 
             let x_range = if x_max == x_min { 1.0 } else { x_max - x_min };
-            let y_range = if y_max_val == y_min_val { 1.0 } else { y_max_val - y_min_val };
+            let y_range = if y_max_val == y_min_val {
+                1.0
+            } else {
+                y_max_val - y_min_val
+            };
 
             let x_bin_width = x_range / bin_count as f64;
             let y_bin_width = y_range / bin_count as f64;
@@ -977,21 +1122,24 @@ fn compute_heatmap_stat(
             let res_ymin = vec![0.0; res_y.len()];
             let res_ymax = res_y.clone();
 
-            new_groups.insert(key, StatData {
-                x: res_x,
-                y: res_y,
-                ymin: res_ymin,
-                ymax: res_ymax,
-                boxplot: None,
-                violin: None,
-                heatmap: Some(HeatmapData {
-                    y_positions: res_y_pos,
-                    fill_values: res_fill,
-                    cell_width: x_bin_width,
-                    cell_height: y_bin_width,
-                    y_categories: None,
-                }),
-            });
+            new_groups.insert(
+                key,
+                StatData {
+                    x: res_x,
+                    y: res_y,
+                    ymin: res_ymin,
+                    ymax: res_ymax,
+                    boxplot: None,
+                    violin: None,
+                    heatmap: Some(HeatmapData {
+                        y_positions: res_y_pos,
+                        fill_values: res_fill,
+                        cell_width: x_bin_width,
+                        cell_height: y_bin_width,
+                        y_categories: None,
+                    }),
+                },
+            );
         } else {
             // Categorical mode: treat x and y as categories
             // y_vals are parsed from the y column (numeric), fill_vals from the fill column
@@ -1021,8 +1169,16 @@ fn compute_heatmap_stat(
             let y_count = unique_y.len();
 
             // Build cell lookup
-            let x_idx_map: HashMap<String, usize> = unique_x.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
-            let y_idx_map: HashMap<String, usize> = unique_y.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
+            let x_idx_map: HashMap<String, usize> = unique_x
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (s.clone(), i))
+                .collect();
+            let y_idx_map: HashMap<String, usize> = unique_y
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (s.clone(), i))
+                .collect();
 
             // Aggregate values per cell
             let mut cell_values: HashMap<(usize, usize), f64> = HashMap::new();
@@ -1063,21 +1219,24 @@ fn compute_heatmap_stat(
             let res_ymin = vec![0.0; res_y.len()];
             let res_ymax = vec![(y_count as f64 - 1.0).max(0.0); res_y.len()];
 
-            new_groups.insert(key, StatData {
-                x: res_x,
-                y: res_y,
-                ymin: res_ymin,
-                ymax: res_ymax,
-                boxplot: None,
-                violin: None,
-                heatmap: Some(HeatmapData {
-                    y_positions: res_y_pos,
-                    fill_values: res_fill,
-                    cell_width: 1.0,
-                    cell_height: 1.0,
-                    y_categories: Some(unique_y),
-                }),
-            });
+            new_groups.insert(
+                key,
+                StatData {
+                    x: res_x,
+                    y: res_y,
+                    ymin: res_ymin,
+                    ymax: res_ymax,
+                    boxplot: None,
+                    violin: None,
+                    heatmap: Some(HeatmapData {
+                        y_positions: res_y_pos,
+                        fill_values: res_fill,
+                        cell_width: 1.0,
+                        cell_height: 1.0,
+                        y_categories: Some(unique_y),
+                    }),
+                },
+            );
         }
     }
 
@@ -1086,13 +1245,20 @@ fn compute_heatmap_stat(
 
 fn apply_statistics(
     groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
-    stat: &Stat
+    stat: &Stat,
 ) -> Result<HashMap<String, StatData>> {
     match stat {
-        Stat::Identity => Ok(groups.into_iter().map(|(k, v)| (k, StatData::from_tuple(v))).collect()),
+        Stat::Identity => Ok(groups
+            .into_iter()
+            .map(|(k, v)| (k, StatData::from_tuple(v)))
+            .collect()),
         Stat::Bin { bins } => compute_bin_stat(groups, *bins),
         Stat::Count => compute_count_stat(groups),
-        Stat::Smooth { method, span, samples } => compute_smooth_stat(groups, method, *span, *samples),
+        Stat::Smooth {
+            method,
+            span,
+            samples,
+        } => compute_smooth_stat(groups, method, *span, *samples),
         Stat::Boxplot => compute_boxplot_stat(groups),
         Stat::Violin { draw_quantiles } => compute_violin_stat(groups, draw_quantiles),
         Stat::Density { bw } => compute_density_stat(groups, *bw),
@@ -1101,7 +1267,7 @@ fn apply_statistics(
 }
 
 fn compute_count_stat(
-    groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>
+    groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
 ) -> Result<HashMap<String, StatData>> {
     let mut new_groups = HashMap::new();
 
@@ -1127,7 +1293,10 @@ fn compute_count_stat(
             new_ymax.push(count);
         }
 
-        new_groups.insert(key, StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)));
+        new_groups.insert(
+            key,
+            StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)),
+        );
     }
 
     Ok(new_groups)
@@ -1144,23 +1313,38 @@ fn compute_smooth_stat(
     for (key, (x_strs, y_vals, _, _)) in groups {
         let mut x_floats = Vec::new();
         for s in &x_strs {
-            x_floats.push(s.parse::<f64>().map_err(|_| anyhow!("Stat 'smooth' requires numeric x data"))?);
+            x_floats.push(
+                s.parse::<f64>()
+                    .map_err(|_| anyhow!("Stat 'smooth' requires numeric x data"))?,
+            );
         }
 
-        if x_floats.len() < 2 { continue; }
+        if x_floats.len() < 2 {
+            continue;
+        }
 
         let method = method.to_ascii_lowercase();
         let (new_x_values, new_y) = match method.as_str() {
-            "lm" | "linear" | "linear_regression" => compute_linear_smooth_points(&x_floats, &y_vals),
+            "lm" | "linear" | "linear_regression" => {
+                compute_linear_smooth_points(&x_floats, &y_vals)
+            }
             "loess" | "lowess" => compute_loess_smooth_points(&x_floats, &y_vals, span, samples),
-            other => return Err(anyhow!("Unknown smooth method '{}'. Supported methods: \"lm\", \"loess\"", other)),
+            other => {
+                return Err(anyhow!(
+                    "Unknown smooth method '{}'. Supported methods: \"lm\", \"loess\"",
+                    other
+                ))
+            }
         }?;
 
         let new_x: Vec<String> = new_x_values.iter().map(|x| x.to_string()).collect();
         let new_ymin = new_y.clone();
         let new_ymax = new_y.clone();
 
-        new_groups.insert(key, StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)));
+        new_groups.insert(
+            key,
+            StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)),
+        );
     }
 
     Ok(new_groups)
@@ -1175,7 +1359,9 @@ fn compute_linear_smooth_points(x: &[f64], y: &[f64]) -> Result<(Vec<f64>, Vec<f
 
     let denom = n * sum_xx - sum_x * sum_x;
     if denom.abs() < f64::EPSILON {
-        return Err(anyhow!("Stat 'smooth' requires x data with non-zero variance"));
+        return Err(anyhow!(
+            "Stat 'smooth' requires x data with non-zero variance"
+        ));
     }
 
     let slope = (n * sum_xy - sum_x * sum_y) / denom;
@@ -1206,7 +1392,9 @@ fn compute_loess_smooth_points(
     let min_x = pairs.first().map(|p| p.0).unwrap();
     let max_x = pairs.last().map(|p| p.0).unwrap();
     if (max_x - min_x).abs() < f64::EPSILON {
-        return Err(anyhow!("Stat 'smooth' requires x data with non-zero variance"));
+        return Err(anyhow!(
+            "Stat 'smooth' requires x data with non-zero variance"
+        ));
     }
 
     let sample_count = samples.unwrap_or(80).max(2);
@@ -1235,7 +1423,11 @@ fn loess_predict_at(pairs: &[(f64, f64)], x0: f64, neighborhood: usize) -> f64 {
 
     let mut bandwidth = distances[neighborhood.saturating_sub(1)];
     if bandwidth <= f64::EPSILON {
-        bandwidth = distances.iter().copied().find(|d| *d > f64::EPSILON).unwrap_or(1.0);
+        bandwidth = distances
+            .iter()
+            .copied()
+            .find(|d| *d > f64::EPSILON)
+            .unwrap_or(1.0);
     }
 
     let mut sw = 0.0;
@@ -1284,25 +1476,36 @@ fn loess_predict_at(pairs: &[(f64, f64)], x0: f64, neighborhood: usize) -> f64 {
 
 fn compute_bin_stat(
     groups: HashMap<String, (Vec<String>, Vec<f64>, Vec<f64>, Vec<f64>)>,
-    bin_count: usize
+    bin_count: usize,
 ) -> Result<HashMap<String, StatData>> {
     // 1. Collect all X values to determine range
     let mut all_values = Vec::new();
     for (x_strs, _, _, _) in groups.values() {
         for s in x_strs {
-            let v = s.parse::<f64>().map_err(|_| anyhow!("Stat 'bin' requires numeric x data"))?;
+            let v = s
+                .parse::<f64>()
+                .map_err(|_| anyhow!("Stat 'bin' requires numeric x data"))?;
             all_values.push(v);
         }
     }
 
-    if all_values.is_empty() { return Ok(groups.into_iter().map(|(k, v)| (k, StatData::from_tuple(v))).collect()); }
+    if all_values.is_empty() {
+        return Ok(groups
+            .into_iter()
+            .map(|(k, v)| (k, StatData::from_tuple(v)))
+            .collect());
+    }
 
     let min = all_values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
     let max = all_values.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b));
 
     // Add small buffer or handle 0 range
     let range = max - min;
-    let width = if range == 0.0 { 1.0 } else { range / bin_count as f64 };
+    let width = if range == 0.0 {
+        1.0
+    } else {
+        range / bin_count as f64
+    };
 
     let mut new_groups = HashMap::new();
 
@@ -1310,10 +1513,10 @@ fn compute_bin_stat(
         let mut bins: HashMap<isize, usize> = HashMap::new();
 
         for s in x_strs {
-             // We already checked they are numeric
-             let v = s.parse::<f64>().unwrap();
-             let bin_idx = ((v - min) / width).floor() as isize;
-             *bins.entry(bin_idx).or_default() += 1;
+            // We already checked they are numeric
+            let v = s.parse::<f64>().unwrap();
+            let bin_idx = ((v - min) / width).floor() as isize;
+            *bins.entry(bin_idx).or_default() += 1;
         }
 
         // Convert bins back to (X, Y)
@@ -1334,7 +1537,10 @@ fn compute_bin_stat(
             new_ymax.push(count);
         }
 
-        new_groups.insert(key, StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)));
+        new_groups.insert(
+            key,
+            StatData::from_tuple((new_x, new_y, new_ymin, new_ymax)),
+        );
     }
 
     Ok(new_groups)
@@ -1413,6 +1619,9 @@ mod tests {
 
         assert_eq!(render_data.panels.len(), 2); // A and B panels
         assert_eq!(render_data.facet_layout.panel_titles.len(), 2);
-        assert!(render_data.facet_layout.panel_titles.contains(&"A".to_string()));
+        assert!(render_data
+            .facet_layout
+            .panel_titles
+            .contains(&"A".to_string()));
     }
 }

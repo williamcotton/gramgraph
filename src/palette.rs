@@ -89,6 +89,51 @@ impl SizePalette {
     }
 }
 
+/// Alpha palette for categorical transparency mapping
+pub struct AlphaPalette {
+    min_alpha: f64,
+    max_alpha: f64,
+}
+
+impl AlphaPalette {
+    /// Create a new alpha palette with min and max opacity.
+    pub fn new(min_alpha: f64, max_alpha: f64) -> Self {
+        AlphaPalette {
+            min_alpha,
+            max_alpha,
+        }
+    }
+
+    /// Default alpha palette (subtle to fully opaque).
+    pub fn default_range() -> Self {
+        AlphaPalette::new(0.35, 1.0)
+    }
+
+    /// Assign discrete alpha values to a list of group keys.
+    pub fn assign_alphas(&self, group_keys: &[String]) -> HashMap<String, f64> {
+        let num_groups = group_keys.len();
+        if num_groups == 0 {
+            return HashMap::new();
+        }
+
+        if num_groups == 1 {
+            return vec![(group_keys[0].clone(), self.max_alpha)]
+                .into_iter()
+                .collect();
+        }
+
+        group_keys
+            .iter()
+            .enumerate()
+            .map(|(i, key)| {
+                let fraction = i as f64 / (num_groups - 1) as f64;
+                let alpha = self.min_alpha + (self.max_alpha - self.min_alpha) * fraction;
+                (key.clone(), alpha)
+            })
+            .collect()
+    }
+}
+
 /// Shape palette for categorical shape mapping
 pub struct ShapePalette {
     shapes: Vec<String>,
@@ -173,7 +218,7 @@ mod tests {
         let groups = vec!["A".to_string(), "B".to_string()];
         let sizes = palette.assign_sizes(&groups);
 
-        assert_eq!(sizes.get("A"), Some(&5.0));  // Min
+        assert_eq!(sizes.get("A"), Some(&5.0)); // Min
         assert_eq!(sizes.get("B"), Some(&15.0)); // Max
     }
 
@@ -183,7 +228,7 @@ mod tests {
         let groups = vec!["A".to_string(), "B".to_string(), "C".to_string()];
         let sizes = palette.assign_sizes(&groups);
 
-        assert_eq!(sizes.get("A"), Some(&5.0));  // Min
+        assert_eq!(sizes.get("A"), Some(&5.0)); // Min
         assert_eq!(sizes.get("B"), Some(&10.0)); // Middle
         assert_eq!(sizes.get("C"), Some(&15.0)); // Max
     }
@@ -195,6 +240,17 @@ mod tests {
         let sizes = palette.assign_sizes(&groups);
 
         assert_eq!(sizes.len(), 0);
+    }
+
+    #[test]
+    fn test_alpha_palette_assign_alphas() {
+        let palette = AlphaPalette::new(0.2, 0.8);
+        let groups = vec!["A".to_string(), "B".to_string(), "C".to_string()];
+        let alphas = palette.assign_alphas(&groups);
+
+        assert_eq!(alphas.get("A"), Some(&0.2));
+        assert_eq!(alphas.get("B"), Some(&0.5));
+        assert_eq!(alphas.get("C"), Some(&0.8));
     }
 
     #[test]

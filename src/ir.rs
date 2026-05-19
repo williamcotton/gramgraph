@@ -1,5 +1,8 @@
+use crate::graph::{
+    BarStyle, BoxplotStyle, DensityStyle, HeatmapStyle, LineStyle, PointStyle, RibbonStyle,
+    ViolinStyle,
+};
 use crate::parser::ast::Layer;
-use crate::graph::{LineStyle, PointStyle, BarStyle, RibbonStyle, BoxplotStyle, ViolinStyle, DensityStyle, HeatmapStyle};
 
 // =============================================================================
 // Phase 1: Resolution
@@ -83,19 +86,19 @@ pub struct LayerData {
 #[derive(Debug, Clone)]
 pub struct GroupData {
     pub key: String, // Legend key (e.g. "Region A")
-    
+
     // Normalized Geometry Data
     // For Line/Point: x and y are straightforward.
     // For Bar: x is category index, y is value.
     // Stacking is pre-calculated here: y_start, y_end.
     pub x: Vec<f64>,
-    pub y: Vec<f64>,      // Main value (or y_end)
+    pub y: Vec<f64>,       // Main value (or y_end)
     pub y_start: Vec<f64>, // For stacked bars (0.0 if not stacked)
 
     // New fields for ribbons/error bars calculated by stats
     pub y_min: Vec<f64>,
     pub y_max: Vec<f64>,
-    
+
     // Boxplot statistics
     pub y_q1: Vec<f64>,
     pub y_median: Vec<f64>,
@@ -103,15 +106,15 @@ pub struct GroupData {
     pub outliers: Vec<Vec<f64>>,
 
     // Violin statistics (KDE density curves)
-    pub violin_density: Vec<Vec<f64>>,          // Normalized density values (0-1) per x category
-    pub violin_density_y: Vec<Vec<f64>>,        // Y coordinates for density curve per x category
-    pub violin_quantile_values: Vec<Vec<f64>>,  // Computed Y values at requested quantiles per x category
+    pub violin_density: Vec<Vec<f64>>, // Normalized density values (0-1) per x category
+    pub violin_density_y: Vec<Vec<f64>>, // Y coordinates for density curve per x category
+    pub violin_quantile_values: Vec<Vec<f64>>, // Computed Y values at requested quantiles per x category
 
     // Heatmap cell data
-    pub heatmap_y_positions: Vec<f64>,   // Y position for each cell
-    pub heatmap_fill_values: Vec<f64>,   // Fill value for color mapping
-    pub heatmap_cell_width: f64,         // Cell width in data units
-    pub heatmap_cell_height: f64,        // Cell height in data units
+    pub heatmap_y_positions: Vec<f64>, // Y position for each cell
+    pub heatmap_fill_values: Vec<f64>, // Fill value for color mapping
+    pub heatmap_cell_width: f64,       // Cell width in data units
+    pub heatmap_cell_height: f64,      // Cell height in data units
 
     // Original category names for x-axis (if categorical)
     pub x_categories: Option<Vec<String>>,
@@ -156,15 +159,41 @@ pub struct Scale {
     pub domain: (f64, f64), // Data min/max
     pub range: (f64, f64),  // Pixel/Coordinate min/max
     pub is_categorical: bool,
-    pub categories: Vec<String>, // If categorical, maps index -> label
+    pub categories: Vec<String>,  // If categorical, maps index -> label
     pub tick_positions: Vec<f64>, // Precomputed nice tick positions (empty for categorical)
     pub datetime: Option<DateTimeScale>,
+    pub transform: AxisTransform,
 }
 
 #[derive(Debug, Clone)]
 pub struct DateTimeScale {
     pub interval_seconds: Option<f64>,
     pub label_format: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AxisTransform {
+    Linear,
+    Log10,
+    Sqrt,
+}
+
+impl AxisTransform {
+    pub fn apply(self, value: f64) -> Option<f64> {
+        match self {
+            AxisTransform::Linear => value.is_finite().then_some(value),
+            AxisTransform::Log10 => (value > 0.0 && value.is_finite()).then_some(value.log10()),
+            AxisTransform::Sqrt => (value >= 0.0 && value.is_finite()).then_some(value.sqrt()),
+        }
+    }
+
+    pub fn invert(self, value: f64) -> f64 {
+        match self {
+            AxisTransform::Linear => value,
+            AxisTransform::Log10 => 10.0_f64.powf(value),
+            AxisTransform::Sqrt => value * value,
+        }
+    }
 }
 
 // =============================================================================

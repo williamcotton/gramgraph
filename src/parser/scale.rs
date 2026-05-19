@@ -1,14 +1,14 @@
+use crate::parser::ast::{AxisScale, DateTimeScaleOptions, ScaleType};
+use crate::parser::lexer::{number_literal, string_literal, ws};
 use nom::{
+    branch::alt,
     bytes::complete::tag,
     character::complete::char,
-    branch::alt,
-    combinator::{map},
+    combinator::map,
     multi::separated_list0,
     sequence::{delimited, preceded},
     IResult,
 };
-use crate::parser::ast::{AxisScale, DateTimeScaleOptions, ScaleType};
-use crate::parser::lexer::{number_literal, string_literal, ws};
 
 fn axis_scale(scale_type: ScaleType, limits: Option<(f64, f64)>) -> AxisScale {
     AxisScale {
@@ -28,6 +28,18 @@ pub fn parse_scale_y_log10(input: &str) -> IResult<&str, AxisScale> {
     let (input, _) = ws(tag("scale_y_log10"))(input)?;
     let (input, _) = delimited(tag("("), ws(tag("")), tag(")"))(input)?;
     Ok((input, axis_scale(ScaleType::Log10, None)))
+}
+
+pub fn parse_scale_x_sqrt(input: &str) -> IResult<&str, AxisScale> {
+    let (input, _) = ws(tag("scale_x_sqrt"))(input)?;
+    let (input, _) = delimited(tag("("), ws(tag("")), tag(")"))(input)?;
+    Ok((input, axis_scale(ScaleType::Sqrt, None)))
+}
+
+pub fn parse_scale_y_sqrt(input: &str) -> IResult<&str, AxisScale> {
+    let (input, _) = ws(tag("scale_y_sqrt"))(input)?;
+    let (input, _) = delimited(tag("("), ws(tag("")), tag(")"))(input)?;
+    Ok((input, axis_scale(ScaleType::Sqrt, None)))
 }
 
 pub fn parse_scale_x_reverse(input: &str) -> IResult<&str, AxisScale> {
@@ -74,8 +86,14 @@ pub fn parse_scale_x_datetime(input: &str) -> IResult<&str, AxisScale> {
     let (input, args) = separated_list0(
         ws(char(',')),
         alt((
-            map(preceded(ws(tag("interval:")), ws(string_literal)), DateTimeScaleArg::Interval),
-            map(preceded(ws(tag("format:")), ws(string_literal)), DateTimeScaleArg::Format),
+            map(
+                preceded(ws(tag("interval:")), ws(string_literal)),
+                DateTimeScaleArg::Interval,
+            ),
+            map(
+                preceded(ws(tag("format:")), ws(string_literal)),
+                DateTimeScaleArg::Format,
+            ),
         )),
     )(input)?;
     let (input, _) = ws(char(')'))(input)?;
@@ -107,6 +125,8 @@ pub fn parse_scale_command(input: &str) -> IResult<&str, (bool, AxisScale)> {
         map(parse_scale_x_datetime, |s| (true, s)),
         map(parse_scale_x_log10, |s| (true, s)),
         map(parse_scale_y_log10, |s| (false, s)),
+        map(parse_scale_x_sqrt, |s| (true, s)),
+        map(parse_scale_y_sqrt, |s| (false, s)),
         map(parse_scale_x_reverse, |s| (true, s)),
         map(parse_scale_y_reverse, |s| (false, s)),
         map(parse_xlim, |s| (true, s)),
@@ -120,9 +140,9 @@ mod tests {
 
     #[test]
     fn parse_scale_x_datetime_with_interval_and_format() {
-        let (_, scale) = parse_scale_x_datetime(
-            r#"scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")"#,
-        ).unwrap();
+        let (_, scale) =
+            parse_scale_x_datetime(r#"scale_x_datetime(interval: "20h", format: "%b %-d %H:%M")"#)
+                .unwrap();
 
         assert_eq!(scale.scale_type, ScaleType::DateTime);
         let datetime = scale.datetime.unwrap();
@@ -137,7 +157,22 @@ mod tests {
         assert_eq!(scale.scale_type, ScaleType::DateTime);
         assert_eq!(
             scale.datetime,
-            Some(DateTimeScaleOptions { interval: None, format: None })
+            Some(DateTimeScaleOptions {
+                interval: None,
+                format: None
+            })
         );
+    }
+
+    #[test]
+    fn parse_scale_x_sqrt_command() {
+        let (_, scale) = parse_scale_x_sqrt("scale_x_sqrt()").unwrap();
+        assert_eq!(scale.scale_type, ScaleType::Sqrt);
+    }
+
+    #[test]
+    fn parse_scale_y_sqrt_command() {
+        let (_, scale) = parse_scale_y_sqrt("scale_y_sqrt()").unwrap();
+        assert_eq!(scale.scale_type, ScaleType::Sqrt);
     }
 }

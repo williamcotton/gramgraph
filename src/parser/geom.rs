@@ -1,6 +1,9 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
-use super::ast::{AestheticValue, BarLayer, BarPosition, BoxplotLayer, DensityLayer, HeatmapLayer, Layer, LineLayer, PointLayer, RibbonLayer, ViolinLayer};
+use super::ast::{
+    AestheticValue, BarLayer, BarPosition, BoxplotLayer, DensityLayer, HeatmapLayer, Layer,
+    LineLayer, PointLayer, RibbonLayer, ViolinLayer,
+};
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
     branch::alt,
@@ -14,12 +17,12 @@ use nom::{
 
 /// Argument value type for geometry parsers
 enum ArgValue {
-    ColumnName(String),        // x, y aesthetic overrides
-    ColorFixed(String),        // color: "red" (literal)
-    ColorMapped(String),       // color: region (column)
-    NumericFixed(f64),         // width: 2, alpha: 0.5
-    NumericMapped(String),     // width: size_col, alpha: alpha_col
-    NumberArray(Vec<f64>),     // draw_quantiles: [0.25, 0.5, 0.75]
+    ColumnName(String),    // x, y aesthetic overrides
+    ColorFixed(String),    // color: "red" (literal)
+    ColorMapped(String),   // color: region (column)
+    NumericFixed(f64),     // width: 2, alpha: 0.5
+    NumericMapped(String), // width: size_col, alpha: alpha_col
+    NumberArray(Vec<f64>), // draw_quantiles: [0.25, 0.5, 0.75]
 }
 
 /// Parse a number array like [0.25, 0.5, 0.75]
@@ -41,42 +44,34 @@ pub fn parse_line(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(
-                preceded(ws(tag("x:")), ws(identifier)),
-                |x| ("x", ArgValue::ColumnName(x)),
-            ),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // y: can be column
-            map(
-                preceded(ws(tag("y:")), ws(identifier)),
-                |y| ("y", ArgValue::ColumnName(y)),
-            ),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
             // color: can be "red" (literal), region (column)
-            map(
-                preceded(ws(tag("color:")), ws(string_literal)),
-                |c| ("color", ArgValue::ColorFixed(c)),
-            ),
-            map(
-                preceded(ws(tag("color:")), ws(identifier)),
-                |c| ("color", ArgValue::ColorMapped(c)),
-            ),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // width: can be 2.0 (literal), width_col (column)
-            map(
-                preceded(ws(tag("width:")), ws(number_literal)),
-                |w| ("width", ArgValue::NumericFixed(w)),
-            ),
-            map(
-                preceded(ws(tag("width:")), ws(identifier)),
-                |w| ("width", ArgValue::NumericMapped(w)),
-            ),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
             // alpha: can be 0.5 (literal), alpha_col (column)
-            map(
-                preceded(ws(tag("alpha:")), ws(number_literal)),
-                |a| ("alpha", ArgValue::NumericFixed(a)),
-            ),
-            map(
-                preceded(ws(tag("alpha:")), ws(identifier)),
-                |a| ("alpha", ArgValue::NumericMapped(a)),
-            ),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
         )),
     )(input)?;
 
@@ -112,51 +107,41 @@ pub fn parse_point(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(
-                preceded(ws(tag("x:")), ws(identifier)),
-                |x| ("x", ArgValue::ColumnName(x)),
-            ),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // y: can be column
-            map(
-                preceded(ws(tag("y:")), ws(identifier)),
-                |y| ("y", ArgValue::ColumnName(y)),
-            ),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
             // color: can be "blue" (literal), region (column)
-            map(
-                preceded(ws(tag("color:")), ws(string_literal)),
-                |c| ("color", ArgValue::ColorFixed(c)),
-            ),
-            map(
-                preceded(ws(tag("color:")), ws(identifier)),
-                |c| ("color", ArgValue::ColorMapped(c)),
-            ),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // size: can be 5.0 (literal), size_col (column)
-            map(
-                preceded(ws(tag("size:")), ws(number_literal)),
-                |s| ("size", ArgValue::NumericFixed(s)),
-            ),
-            map(
-                preceded(ws(tag("size:")), ws(identifier)),
-                |s| ("size", ArgValue::NumericMapped(s)),
-            ),
+            map(preceded(ws(tag("size:")), ws(number_literal)), |s| {
+                ("size", ArgValue::NumericFixed(s))
+            }),
+            map(preceded(ws(tag("size:")), ws(identifier)), |s| {
+                ("size", ArgValue::NumericMapped(s))
+            }),
             // shape: can be "circle" (literal), shape_col (column)
-            map(
-                preceded(ws(tag("shape:")), ws(string_literal)),
-                |sh| ("shape", ArgValue::ColorFixed(sh)),
-            ),
-            map(
-                preceded(ws(tag("shape:")), ws(identifier)),
-                |sh| ("shape", ArgValue::ColorMapped(sh)),
-            ),
+            map(preceded(ws(tag("shape:")), ws(string_literal)), |sh| {
+                ("shape", ArgValue::ColorFixed(sh))
+            }),
+            map(preceded(ws(tag("shape:")), ws(identifier)), |sh| {
+                ("shape", ArgValue::ColorMapped(sh))
+            }),
             // alpha: can be 0.8 (literal), alpha_col (column)
-            map(
-                preceded(ws(tag("alpha:")), ws(number_literal)),
-                |a| ("alpha", ArgValue::NumericFixed(a)),
-            ),
-            map(
-                preceded(ws(tag("alpha:")), ws(identifier)),
-                |a| ("alpha", ArgValue::NumericMapped(a)),
-            ),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
         )),
     )(input)?;
 
@@ -194,47 +179,38 @@ pub fn parse_bar(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(
-                preceded(ws(tag("x:")), ws(identifier)),
-                |x| ("x", ArgValue::ColumnName(x)),
-            ),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // y: can be column
-            map(
-                preceded(ws(tag("y:")), ws(identifier)),
-                |y| ("y", ArgValue::ColumnName(y)),
-            ),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
             // color: can be "red" (literal), region (column)
-            map(
-                preceded(ws(tag("color:")), ws(string_literal)),
-                |c| ("color", ArgValue::ColorFixed(c)),
-            ),
-            map(
-                preceded(ws(tag("color:")), ws(identifier)),
-                |c| ("color", ArgValue::ColorMapped(c)),
-            ),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // width: can be 0.8 (literal), width_col (column)
-            map(
-                preceded(ws(tag("width:")), ws(number_literal)),
-                |w| ("width", ArgValue::NumericFixed(w)),
-            ),
-            map(
-                preceded(ws(tag("width:")), ws(identifier)),
-                |w| ("width", ArgValue::NumericMapped(w)),
-            ),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
             // alpha: can be 0.7 (literal), alpha_col (column)
-            map(
-                preceded(ws(tag("alpha:")), ws(number_literal)),
-                |a| ("alpha", ArgValue::NumericFixed(a)),
-            ),
-            map(
-                preceded(ws(tag("alpha:")), ws(identifier)),
-                |a| ("alpha", ArgValue::NumericMapped(a)),
-            ),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
             // position: always a string literal
-            map(
-                preceded(ws(tag("position:")), ws(string_literal)),
-                |p| ("position", ArgValue::ColorFixed(p)),
-            ),
+            map(preceded(ws(tag("position:")), ws(string_literal)), |p| {
+                ("position", ArgValue::ColorFixed(p))
+            }),
         )),
     )(input)?;
 
@@ -276,20 +252,32 @@ pub fn parse_ribbon(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // ymin: can be column
-            map(preceded(ws(tag("ymin:")), ws(identifier)), |y| ("ymin", ArgValue::ColumnName(y))),
+            map(preceded(ws(tag("ymin:")), ws(identifier)), |y| {
+                ("ymin", ArgValue::ColumnName(y))
+            }),
             // ymax: can be column
-            map(preceded(ws(tag("ymax:")), ws(identifier)), |y| ("ymax", ArgValue::ColumnName(y))),
-
+            map(preceded(ws(tag("ymax:")), ws(identifier)), |y| {
+                ("ymax", ArgValue::ColumnName(y))
+            }),
             // color: can be "literal", column
-            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
-            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
-
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // alpha: can be number, column
-            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
-            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
-        ))
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -321,7 +309,9 @@ pub fn parse_histogram(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(char(')'))(input)?;
 
     let mut layer = BarLayer::default();
-    layer.stat = crate::parser::ast::Stat::Bin { bins: bins.unwrap_or(30.0) as usize };
+    layer.stat = crate::parser::ast::Stat::Bin {
+        bins: bins.unwrap_or(30.0) as usize,
+    };
     Ok((input, Layer::Bar(layer)))
 }
 
@@ -333,18 +323,40 @@ pub fn parse_smooth(input: &str) -> IResult<&str, Layer> {
     let (input, args) = separated_list0(
         ws(char(',')),
         alt((
-            map(preceded(ws(tag("method:")), ws(string_literal)), |m| ("method", ArgValue::ColorFixed(m))),
-            map(preceded(ws(tag("span:")), ws(number_literal)), |s| ("span", ArgValue::NumericFixed(s))),
-            map(preceded(ws(tag("samples:")), ws(number_literal)), |s| ("samples", ArgValue::NumericFixed(s))),
-            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
-            map(preceded(ws(tag("y:")), ws(identifier)), |y| ("y", ArgValue::ColumnName(y))),
-            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
-            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
-            map(preceded(ws(tag("width:")), ws(number_literal)), |w| ("width", ArgValue::NumericFixed(w))),
-            map(preceded(ws(tag("width:")), ws(identifier)), |w| ("width", ArgValue::NumericMapped(w))),
-            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
-            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
-        ))
+            map(preceded(ws(tag("method:")), ws(string_literal)), |m| {
+                ("method", ArgValue::ColorFixed(m))
+            }),
+            map(preceded(ws(tag("span:")), ws(number_literal)), |s| {
+                ("span", ArgValue::NumericFixed(s))
+            }),
+            map(preceded(ws(tag("samples:")), ws(number_literal)), |s| {
+                ("samples", ArgValue::NumericFixed(s))
+            }),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
     )(input)?;
     let (input, _) = ws(char(')'))(input)?;
 
@@ -370,7 +382,11 @@ pub fn parse_smooth(input: &str) -> IResult<&str, Layer> {
         }
     }
 
-    layer.stat = crate::parser::ast::Stat::Smooth { method, span, samples };
+    layer.stat = crate::parser::ast::Stat::Smooth {
+        method,
+        span,
+        samples,
+    };
     Ok((input, Layer::Line(layer)))
 }
 
@@ -383,27 +399,48 @@ pub fn parse_boxplot(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // y: can be column
-            map(preceded(ws(tag("y:")), ws(identifier)), |y| ("y", ArgValue::ColumnName(y))),
-
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
             // color: can be "literal", column
-            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
-            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
-
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // width: can be number, column
-            map(preceded(ws(tag("width:")), ws(number_literal)), |w| ("width", ArgValue::NumericFixed(w))),
-            map(preceded(ws(tag("width:")), ws(identifier)), |w| ("width", ArgValue::NumericMapped(w))),
-
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
             // alpha: can be number, column
-            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
-            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
-
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
             // Outlier specific args (keep as fixed for simplicity)
-            map(preceded(ws(tag("outlier_color:")), ws(string_literal)), |c| ("outlier_color", ArgValue::ColorFixed(c))),
-            map(preceded(ws(tag("outlier_size:")), ws(number_literal)), |s| ("outlier_size", ArgValue::NumericFixed(s))),
-            map(preceded(ws(tag("outlier_shape:")), ws(string_literal)), |sh| ("outlier_shape", ArgValue::ColorFixed(sh))),
-        ))
+            map(
+                preceded(ws(tag("outlier_color:")), ws(string_literal)),
+                |c| ("outlier_color", ArgValue::ColorFixed(c)),
+            ),
+            map(
+                preceded(ws(tag("outlier_size:")), ws(number_literal)),
+                |s| ("outlier_size", ArgValue::NumericFixed(s)),
+            ),
+            map(
+                preceded(ws(tag("outlier_shape:")), ws(string_literal)),
+                |sh| ("outlier_shape", ArgValue::ColorFixed(sh)),
+            ),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -441,25 +478,40 @@ pub fn parse_violin(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // y: can be column
-            map(preceded(ws(tag("y:")), ws(identifier)), |y| ("y", ArgValue::ColumnName(y))),
-
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
             // color: can be "literal", column
-            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
-            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
-
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // width: can be number, column
-            map(preceded(ws(tag("width:")), ws(number_literal)), |w| ("width", ArgValue::NumericFixed(w))),
-            map(preceded(ws(tag("width:")), ws(identifier)), |w| ("width", ArgValue::NumericMapped(w))),
-
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
             // alpha: can be number, column
-            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
-            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
-
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
             // Violin-specific: draw_quantiles array
-            map(preceded(ws(tag("draw_quantiles:")), ws(parse_number_array)), |q| ("draw_quantiles", ArgValue::NumberArray(q))),
-        ))
+            map(
+                preceded(ws(tag("draw_quantiles:")), ws(parse_number_array)),
+                |q| ("draw_quantiles", ArgValue::NumberArray(q)),
+            ),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -482,7 +534,9 @@ pub fn parse_violin(input: &str) -> IResult<&str, Layer> {
     }
 
     // Set stat with draw_quantiles for transform phase
-    layer.stat = crate::parser::ast::Stat::Violin { draw_quantiles: layer.draw_quantiles.clone() };
+    layer.stat = crate::parser::ast::Stat::Violin {
+        draw_quantiles: layer.draw_quantiles.clone(),
+    };
 
     Ok((input, Layer::Violin(layer)))
 }
@@ -497,19 +551,28 @@ pub fn parse_density(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
-
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // color: can be "literal", column
-            map(preceded(ws(tag("color:")), ws(string_literal)), |c| ("color", ArgValue::ColorFixed(c))),
-            map(preceded(ws(tag("color:")), ws(identifier)), |c| ("color", ArgValue::ColorMapped(c))),
-
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
             // alpha: can be number, column
-            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
-            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
-
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
             // bw: bandwidth (number only)
-            map(preceded(ws(tag("bw:")), ws(number_literal)), |b| ("bw", ArgValue::NumericFixed(b))),
-        ))
+            map(preceded(ws(tag("bw:")), ws(number_literal)), |b| {
+                ("bw", ArgValue::NumericFixed(b))
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -544,17 +607,29 @@ pub fn parse_heatmap(input: &str) -> IResult<&str, Layer> {
         ws(char(',')),
         alt((
             // x: can be column
-            map(preceded(ws(tag("x:")), ws(identifier)), |x| ("x", ArgValue::ColumnName(x))),
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
             // y: can be column
-            map(preceded(ws(tag("y:")), ws(identifier)), |y| ("y", ArgValue::ColumnName(y))),
+            map(preceded(ws(tag("y:")), ws(identifier)), |y| {
+                ("y", ArgValue::ColumnName(y))
+            }),
             // fill: column name for fill values
-            map(preceded(ws(tag("fill:")), ws(identifier)), |f| ("fill", ArgValue::ColumnName(f))),
+            map(preceded(ws(tag("fill:")), ws(identifier)), |f| {
+                ("fill", ArgValue::ColumnName(f))
+            }),
             // bins: number of bins for 2D binning
-            map(preceded(ws(tag("bins:")), ws(number_literal)), |b| ("bins", ArgValue::NumericFixed(b))),
+            map(preceded(ws(tag("bins:")), ws(number_literal)), |b| {
+                ("bins", ArgValue::NumericFixed(b))
+            }),
             // alpha: can be number
-            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| ("alpha", ArgValue::NumericFixed(a))),
-            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| ("alpha", ArgValue::NumericMapped(a))),
-        ))
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -581,7 +656,18 @@ pub fn parse_heatmap(input: &str) -> IResult<&str, Layer> {
 
 /// Parse any geometry layer
 pub fn parse_geom(input: &str) -> IResult<&str, Layer> {
-    alt((parse_line, parse_point, parse_bar, parse_ribbon, parse_histogram, parse_smooth, parse_boxplot, parse_violin, parse_density, parse_heatmap))(input)
+    alt((
+        parse_line,
+        parse_point,
+        parse_bar,
+        parse_ribbon,
+        parse_histogram,
+        parse_smooth,
+        parse_boxplot,
+        parse_violin,
+        parse_density,
+        parse_heatmap,
+    ))(input)
 }
 
 #[cfg(test)]
@@ -780,7 +866,9 @@ mod tests {
 
     #[test]
     fn test_parse_smooth_loess() {
-        let result = parse_smooth(r#"smooth(method: "loess", span: 0.6, samples: 40, color: "red", width: 3)"#);
+        let result = parse_smooth(
+            r#"smooth(method: "loess", span: 0.6, samples: 40, color: "red", width: 3)"#,
+        );
         assert!(result.is_ok());
         let (_, layer) = result.unwrap();
 
@@ -811,7 +899,10 @@ mod tests {
                 assert_eq!(d.color, None);
                 assert_eq!(d.alpha, None);
                 assert_eq!(d.bw, None);
-                assert!(matches!(d.stat, crate::parser::ast::Stat::Density { bw: None }));
+                assert!(matches!(
+                    d.stat,
+                    crate::parser::ast::Stat::Density { bw: None }
+                ));
             }
             _ => panic!("Expected Density layer"),
         }
@@ -827,7 +918,9 @@ mod tests {
                 assert_eq!(d.color, Some(AestheticValue::Fixed("blue".to_string())));
                 assert_eq!(d.alpha, Some(AestheticValue::Fixed(0.5)));
                 assert_eq!(d.bw, Some(1.5));
-                assert!(matches!(d.stat, crate::parser::ast::Stat::Density { bw: Some(b) } if b == 1.5));
+                assert!(
+                    matches!(d.stat, crate::parser::ast::Stat::Density { bw: Some(b) } if b == 1.5)
+                );
             }
             _ => panic!("Expected Density layer"),
         }

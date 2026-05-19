@@ -17,6 +17,10 @@ cat examples/weather_hourly.csv | cargo run -- 'aes(x: time, y: temp) | line() |
 echo "Generating scatter.svg..."
 cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(size: 5) | theme_minimal()' --format svg > examples/scatter.svg
 
+# Shape and Alpha Mappings
+echo "Generating shape_alpha.svg..."
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, shape: gender, alpha: gender) | point(size: 7, color: "steelblue") | labs(title: "Shape and Alpha Mapping", x: "Height (cm)", y: "Weight (kg)") | theme_minimal()' --format svg > examples/shape_alpha.svg
+
 # Dodged Bar Chart
 echo "Generating bar_dodge.svg..."
 cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | theme_minimal()' --format svg > examples/bar_dodge.svg
@@ -62,6 +66,14 @@ cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(
 # Reverse Scale (Note: scales come LAST in parsing order)
 echo "Generating scale_reverse.svg..."
 cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | labs(title: "Reverse Time Axis") | theme_minimal() | scale_x_reverse()' --format svg > examples/scale_reverse.svg
+
+# Log10 Scale
+echo "Generating scale_log10.svg..."
+cat examples/scales.csv | cargo run -- 'aes(x: x, y: value) | line(color: "steelblue", width: 2) | point(shape: "triangle", size: 6, color: "steelblue") | labs(title: "Log10 X Scale", x: "Input", y: "Value") | theme_minimal() | scale_x_log10()' --format svg > examples/scale_log10.svg
+
+# Square Root Scale
+echo "Generating scale_sqrt.svg..."
+cat examples/scales.csv | cargo run -- 'aes(x: x, y: value) | line(color: "purple", width: 2) | point(shape: "diamond", size: 6, color: "purple") | labs(title: "Square Root X Scale", x: "Input", y: "Value") | theme_minimal() | scale_x_sqrt()' --format svg > examples/scale_sqrt.svg
 
 # Boxplot
 echo "Generating boxplot.svg..."

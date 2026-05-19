@@ -2,12 +2,7 @@
 
 use super::ast::Aesthetics;
 use super::lexer::{identifier, ws};
-use nom::{
-    bytes::complete::tag,
-    character::complete::char,
-    multi::separated_list0,
-    IResult,
-};
+use nom::{bytes::complete::tag, character::complete::char, multi::separated_list0, IResult};
 
 /// Parse aesthetics specification
 /// Format: aes(x: col, y: col[, color: col2][, size: col3][, shape: col4][, alpha: col5])
@@ -16,10 +11,7 @@ pub fn parse_aesthetics(input: &str) -> IResult<&str, Aesthetics> {
     let (input, _) = ws(char('('))(input)?;
 
     // Parse named arguments (key: value pairs)
-    let (input, args) = separated_list0(
-        ws(char(',')),
-        parse_aesthetic_argument
-    )(input)?;
+    let (input, args) = separated_list0(ws(char(',')), parse_aesthetic_argument)(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
 
@@ -51,15 +43,25 @@ pub fn parse_aesthetics(input: &str) -> IResult<&str, Aesthetics> {
 
     // Validate required fields
     let x = x.ok_or_else(|| {
-        nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        ))
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
     })?;
-    
+
     // y is now optional (e.g. for histogram)
 
-    Ok((input, Aesthetics { x, y, color, size, shape, alpha, ymin, ymax, fill }))
+    Ok((
+        input,
+        Aesthetics {
+            x,
+            y,
+            color,
+            size,
+            shape,
+            alpha,
+            ymin,
+            ymax,
+            fill,
+        },
+    ))
 }
 
 /// Parse a single aesthetic argument (key: value)

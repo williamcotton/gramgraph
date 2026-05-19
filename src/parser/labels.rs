@@ -1,14 +1,9 @@
-use nom::{
-    bytes::complete::tag,
-    character::complete::char,
-    multi::separated_list0,
-    branch::alt,
-    combinator::map,
-    sequence::preceded,
-    IResult,
-};
 use crate::parser::ast::Labels;
 use crate::parser::lexer::{string_literal, ws};
+use nom::{
+    branch::alt, bytes::complete::tag, character::complete::char, combinator::map,
+    multi::separated_list0, sequence::preceded, IResult,
+};
 
 pub fn parse_labs(input: &str) -> IResult<&str, Labels> {
     let (input, _) = ws(tag("labs"))(input)?;
@@ -18,16 +13,22 @@ pub fn parse_labs(input: &str) -> IResult<&str, Labels> {
         ws(char(',')),
         alt((
             // title: always string literal
-            map(preceded(ws(tag("title:")), ws(string_literal)), |v| ("title", v)),
+            map(preceded(ws(tag("title:")), ws(string_literal)), |v| {
+                ("title", v)
+            }),
             // subtitle: always string literal
-            map(preceded(ws(tag("subtitle:")), ws(string_literal)), |v| ("subtitle", v)),
+            map(preceded(ws(tag("subtitle:")), ws(string_literal)), |v| {
+                ("subtitle", v)
+            }),
             // x: always string literal
             map(preceded(ws(tag("x:")), ws(string_literal)), |v| ("x", v)),
             // y: always string literal
             map(preceded(ws(tag("y:")), ws(string_literal)), |v| ("y", v)),
             // caption: always string literal
-            map(preceded(ws(tag("caption:")), ws(string_literal)), |v| ("caption", v)),
-        ))
+            map(preceded(ws(tag("caption:")), ws(string_literal)), |v| {
+                ("caption", v)
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;

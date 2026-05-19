@@ -39,7 +39,7 @@ fn consume_identifier(chars: &mut Peekable<Chars>) -> String {
             return name;
         }
     }
-    
+
     while let Some(&c) = chars.peek() {
         if c.is_alphanumeric() || c == '_' {
             name.push(c);
@@ -60,7 +60,7 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("col".to_string(), "height".to_string());
         vars.insert("val".to_string(), "10".to_string());
-        
+
         let input = "aes(x: $col) | point(size: $val)";
         let output = expand_variables(input, &vars).unwrap();
         assert_eq!(output, "aes(x: height) | point(size: 10)");
@@ -70,7 +70,7 @@ mod tests {
     fn test_string_interpolation() {
         let mut vars = HashMap::new();
         vars.insert("x".to_string(), "date".to_string());
-        
+
         // $x inside quotes should now be expanded
         let input = "aes(x: $x) | labs(title: \"Value in $x\")";
         let output = expand_variables(input, &vars).unwrap();
@@ -84,7 +84,7 @@ mod tests {
         let output = expand_variables(input, &vars).unwrap();
         assert_eq!(output, "Cost ($)");
     }
-    
+
     #[test]
     fn test_undefined_variable() {
         let vars = HashMap::new();

@@ -1,14 +1,17 @@
+use crate::datetime::format_datetime_tick;
+use crate::ir::{AxisTransform, DrawCommand, PanelScene, SceneGraph};
+use crate::theme_resolve::{parse_color as resolve_color, FontFace, ResolvedTheme};
+use crate::{OutputFormat, RenderOptions};
 use anyhow::{Context, Result};
-use image::{ImageEncoder, RgbImage, imageops::FilterType};
+use image::{imageops::FilterType, ImageEncoder, RgbImage};
 use plotters::coord::ranged1d::{KeyPointHint, NoDefaultFormatting, Ranged, ValueFormatter};
 use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
-use plotters::style::{FontStyle, FontTransform, text_anchor::{HPos, VPos, Pos}};
+use plotters::style::{
+    text_anchor::{HPos, Pos, VPos},
+    FontStyle, FontTransform,
+};
 use std::ops::Range;
-use crate::datetime::format_datetime_tick;
-use crate::ir::{SceneGraph, PanelScene, DrawCommand};
-use crate::{OutputFormat, RenderOptions};
-use crate::theme_resolve::{ResolvedTheme, FontFace, parse_color as resolve_color};
 
 const PNG_SUPERSAMPLING_SCALE: u32 = 2;
 
@@ -40,7 +43,7 @@ impl Ranged for FixedKeyPointCoord {
 
     fn key_points<Hint: KeyPointHint>(&self, hint: Hint) -> Vec<Self::ValueType> {
         if hint.weight().allow_light_points() {
-            Vec::new()
+            self.inner.key_points(hint)
         } else {
             self.key_points.clone()
         }
@@ -175,8 +178,10 @@ fn scale_resolved_theme(theme: &ResolvedTheme, pixel_scale: u32) -> ResolvedThem
         }
     }
 
-    scaled.plot_background.border_width = scale_f64(scaled.plot_background.border_width, pixel_scale);
-    scaled.panel_background.border_width = scale_f64(scaled.panel_background.border_width, pixel_scale);
+    scaled.plot_background.border_width =
+        scale_f64(scaled.plot_background.border_width, pixel_scale);
+    scaled.panel_background.border_width =
+        scale_f64(scaled.panel_background.border_width, pixel_scale);
     if let Some(background) = scaled.legend_background.as_mut() {
         background.border_width = scale_f64(background.border_width, pixel_scale);
     }
@@ -220,7 +225,9 @@ fn vjust_to_vpos(vjust: f64) -> VPos {
     }
 }
 
-fn build_axis_text_styles<'a>(theme: &'a ResolvedTheme) -> (TextStyle<'a>, TextStyle<'a>, TextStyle<'a>) {
+fn build_axis_text_styles<'a>(
+    theme: &'a ResolvedTheme,
+) -> (TextStyle<'a>, TextStyle<'a>, TextStyle<'a>) {
     let font_style = match theme.axis_text.face {
         FontFace::Bold => FontStyle::Bold,
         FontFace::Italic => FontStyle::Italic,
@@ -237,16 +244,19 @@ fn build_axis_text_styles<'a>(theme: &'a ResolvedTheme) -> (TextStyle<'a>, TextS
         vjust_to_vpos(theme.axis_text.vjust),
     );
 
-    let x_axis_style = TextStyle::from(base_font.clone().transform(angle_to_font_transform(theme.axis_text.angle)))
-        .color(&theme.axis_text.color)
-        .pos(pos);
+    let x_axis_style = TextStyle::from(
+        base_font
+            .clone()
+            .transform(angle_to_font_transform(theme.axis_text.angle)),
+    )
+    .color(&theme.axis_text.color)
+    .pos(pos);
 
     let y_axis_style = TextStyle::from(base_font.clone())
         .color(&theme.axis_text.color)
         .pos(pos);
 
-    let axis_desc_style = TextStyle::from(base_font)
-        .color(&theme.axis_text.color);
+    let axis_desc_style = TextStyle::from(base_font).color(&theme.axis_text.color);
 
     (x_axis_style, y_axis_style, axis_desc_style)
 }
@@ -260,7 +270,10 @@ fn build_legend_text_style<'a>(theme: &'a ResolvedTheme) -> TextStyle<'a> {
     };
 
     TextStyle::from(
-        (theme.legend_text.family.as_str(), theme.legend_text.size as i32)
+        (
+            theme.legend_text.family.as_str(),
+            theme.legend_text.size as i32,
+        )
             .into_font()
             .style(font_style),
     )
@@ -274,7 +287,9 @@ fn estimate_text_size<DB: DrawingBackend>(
     font_size: f64,
 ) -> (u32, u32) {
     area.estimate_text_size(text, style).unwrap_or_else(|_| {
-        let width = ((text.chars().count() as f64) * font_size * 0.6).ceil().max(1.0) as u32;
+        let width = ((text.chars().count() as f64) * font_size * 0.6)
+            .ceil()
+            .max(1.0) as u32;
         let height = (font_size * 1.3).ceil().max(1.0) as u32;
         (width, height)
     })
@@ -290,40 +305,51 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    labels.into_iter().fold((0u32, 0u32), |(max_w, max_h), label| {
-        let (w, h) = estimate_text_size(area, label.as_ref(), style, font_size);
-        (max_w.max(w), max_h.max(h))
-    })
+    labels
+        .into_iter()
+        .fold((0u32, 0u32), |(max_w, max_h), label| {
+            let (w, h) = estimate_text_size(area, label.as_ref(), style, font_size);
+            (max_w.max(w), max_h.max(h))
+        })
 }
 
 fn blank_tick_label(_value: &f64) -> String {
     String::new()
 }
 
+fn format_axis_tick(value: f64, transform: AxisTransform) -> String {
+    crate::scale::format_nice_number(transform.invert(value))
+}
+
 fn estimate_numeric_tick_label_width<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     tick_positions: &[f64],
     range: (f64, f64),
+    transform: AxisTransform,
     style: &TextStyle,
     font_size: f64,
 ) -> u32 {
     let labels: Vec<String> = if !tick_positions.is_empty() {
-        tick_positions.iter().map(|v| crate::scale::format_nice_number(*v)).collect()
+        tick_positions
+            .iter()
+            .map(|v| format_axis_tick(*v, transform))
+            .collect()
     } else {
         let coord: RangedCoordf64 = (range.0..range.1).into();
         let mut lbls: Vec<String> = coord
             .key_points(11)
             .into_iter()
-            .map(|value| coord.format_ext(&value))
+            .map(|value| format_axis_tick(value, transform))
             .collect();
         if lbls.is_empty() {
-            lbls.push(coord.format_ext(&range.0));
-            lbls.push(coord.format_ext(&range.1));
+            lbls.push(format_axis_tick(range.0, transform));
+            lbls.push(format_axis_tick(range.1, transform));
         }
         lbls
     };
 
-    let (max_width, _) = max_text_dimensions(area, labels.iter().map(String::as_str), style, font_size);
+    let (max_width, _) =
+        max_text_dimensions(area, labels.iter().map(String::as_str), style, font_size);
     max_width
 }
 
@@ -360,7 +386,12 @@ fn calculate_axis_layout<DB: DrawingBackend>(
     let font_size = theme.axis_text.size.max(1.0);
 
     let (max_x_label_width, max_x_label_height) = if panel.x_scale.is_categorical {
-        max_text_dimensions(area, panel.x_scale.categories.iter().map(String::as_str), y_axis_style, font_size)
+        max_text_dimensions(
+            area,
+            panel.x_scale.categories.iter().map(String::as_str),
+            y_axis_style,
+            font_size,
+        )
     } else {
         (0, 0)
     };
@@ -374,14 +405,25 @@ fn calculate_axis_layout<DB: DrawingBackend>(
         );
         max_width
     } else {
-        estimate_numeric_tick_label_width(area, &panel.y_scale.tick_positions, panel.y_scale.range, y_axis_style, font_size)
+        estimate_numeric_tick_label_width(
+            area,
+            &panel.y_scale.tick_positions,
+            panel.y_scale.range,
+            panel.y_scale.transform,
+            y_axis_style,
+            font_size,
+        )
     };
 
-    let (_, x_desc_height) = panel.x_label.as_ref()
+    let (_, x_desc_height) = panel
+        .x_label
+        .as_ref()
         .map(|label| estimate_text_size(area, label, axis_desc_style, font_size))
         .unwrap_or((0, 0));
 
-    let y_desc_width = panel.y_label.as_ref()
+    let y_desc_width = panel
+        .y_label
+        .as_ref()
         .map(|label| {
             let (_, unrotated_height) = estimate_text_size(area, label, axis_desc_style, font_size);
             unrotated_height
@@ -389,7 +431,8 @@ fn calculate_axis_layout<DB: DrawingBackend>(
         .unwrap_or(0);
 
     let normalized_angle = ((theme.axis_text.angle % 360.0) + 360.0) % 360.0;
-    let rotated_x_labels = (45.0..135.0).contains(&normalized_angle) || (225.0..315.0).contains(&normalized_angle);
+    let rotated_x_labels =
+        (45.0..135.0).contains(&normalized_angle) || (225.0..315.0).contains(&normalized_angle);
     let manual_rotated_x_labels = rotated_x_labels && panel.x_scale.is_categorical;
     let x_label_vertical_extent = if rotated_x_labels {
         max_x_label_width
@@ -454,9 +497,9 @@ fn calculate_axis_layout<DB: DrawingBackend>(
     }
 }
 
-fn draw_manual_rotated_x_tick_labels<DB, X>(
+fn draw_manual_rotated_x_tick_labels<DB, X, Y>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
-    chart: &ChartContext<'_, DB, Cartesian2d<X, RangedCoordf64>>,
+    chart: &ChartContext<'_, DB, Cartesian2d<X, Y>>,
     panel: &PanelScene,
     axis_layout: AxisLayout,
     x_axis_style: &TextStyle,
@@ -466,6 +509,7 @@ where
     DB: DrawingBackend,
     DB::ErrorType: 'static,
     X: Ranged<ValueType = f64>,
+    Y: Ranged<ValueType = f64>,
 {
     if !axis_layout.manual_rotated_x_labels {
         return Ok(());
@@ -494,9 +538,9 @@ where
     Ok(())
 }
 
-fn draw_manual_y_axis_desc<DB, X>(
+fn draw_manual_y_axis_desc<DB, X, Y>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
-    chart: &ChartContext<'_, DB, Cartesian2d<X, RangedCoordf64>>,
+    chart: &ChartContext<'_, DB, Cartesian2d<X, Y>>,
     panel: &PanelScene,
     axis_layout: AxisLayout,
     axis_desc_style: &TextStyle,
@@ -505,6 +549,7 @@ where
     DB: DrawingBackend,
     DB::ErrorType: 'static,
     X: Ranged<ValueType = f64>,
+    Y: Ranged<ValueType = f64>,
 {
     let Some(y_label) = panel.y_label.as_ref() else {
         return Ok(());
@@ -592,19 +637,14 @@ impl Canvas {
         supersampled_scene.height = height;
 
         {
-            let root = BitMapBackend::with_buffer(&mut buffer, (width, height))
-                .into_drawing_area();
+            let root = BitMapBackend::with_buffer(&mut buffer, (width, height)).into_drawing_area();
             Self::draw_scene(&root, &supersampled_scene, PNG_SUPERSAMPLING_SCALE)?;
         }
 
         let image = RgbImage::from_raw(width, height, buffer)
             .context("Failed to build supersampled PNG image")?;
-        let downsampled = image::imageops::resize(
-            &image,
-            target_width,
-            target_height,
-            FilterType::Lanczos3,
-        );
+        let downsampled =
+            image::imageops::resize(&image, target_width, target_height, FilterType::Lanczos3);
         let downsampled_buffer = downsampled.into_raw();
 
         // Encode as PNG
@@ -639,12 +679,15 @@ impl Canvas {
         scene: &SceneGraph,
         pixel_scale: u32,
     ) -> Result<()>
-    where DB::ErrorType: 'static {
+    where
+        DB::ErrorType: 'static,
+    {
         // Resolve theme once at the start
         let resolved_theme = scale_resolved_theme(&scene.theme.resolve(), pixel_scale);
 
         // Fill background with resolved theme color
-        root.fill(&resolved_theme.plot_background.fill).context("Failed to fill background")?;
+        root.fill(&resolved_theme.plot_background.fill)
+            .context("Failed to fill background")?;
 
         // Calculate header height for title + subtitle
         let title_size = resolved_theme.plot_title.size;
@@ -665,11 +708,17 @@ impl Canvas {
             0
         };
 
-        let caption_height: u32 = if has_caption { scale_u32(30, pixel_scale) } else { 0 };
+        let caption_height: u32 = if has_caption {
+            scale_u32(30, pixel_scale)
+        } else {
+            0
+        };
 
         // Split root into header, main, footer
         let total_height = scene.height;
-        let main_height = total_height.saturating_sub(header_height).saturating_sub(caption_height);
+        let main_height = total_height
+            .saturating_sub(header_height)
+            .saturating_sub(caption_height);
 
         let (header_area, rest) = root.split_vertically(header_height);
         let (main_area, footer_area) = rest.split_vertically(main_height);
@@ -679,36 +728,54 @@ impl Canvas {
             let mut y_offset = scale_i32(8, pixel_scale);
 
             if let Some(title) = &scene.labels.title {
-                let title_style = TextStyle::from((
-                    resolved_theme.plot_title.family.as_str(),
-                    resolved_theme.plot_title.size as i32
-                ).into_font()).color(&resolved_theme.plot_title.color);
-                header_area.draw_text(title, &title_style, (scale_i32(10, pixel_scale), y_offset))?;
+                let title_style = TextStyle::from(
+                    (
+                        resolved_theme.plot_title.family.as_str(),
+                        resolved_theme.plot_title.size as i32,
+                    )
+                        .into_font(),
+                )
+                .color(&resolved_theme.plot_title.color);
+                header_area.draw_text(
+                    title,
+                    &title_style,
+                    (scale_i32(10, pixel_scale), y_offset),
+                )?;
                 y_offset += title_size as i32 + scale_i32(4, pixel_scale);
             }
 
             if let Some(subtitle) = &scene.labels.subtitle {
                 let subtitle_size = (title_size * 0.7).max(10.0);
-                let subtitle_style = TextStyle::from((
-                    resolved_theme.plot_title.family.as_str(),
-                    subtitle_size as i32
-                ).into_font()).color(&resolved_theme.axis_text.color);
-                header_area.draw_text(subtitle, &subtitle_style, (scale_i32(10, pixel_scale), y_offset))?;
+                let subtitle_style = TextStyle::from(
+                    (
+                        resolved_theme.plot_title.family.as_str(),
+                        subtitle_size as i32,
+                    )
+                        .into_font(),
+                )
+                .color(&resolved_theme.axis_text.color);
+                header_area.draw_text(
+                    subtitle,
+                    &subtitle_style,
+                    (scale_i32(10, pixel_scale), y_offset),
+                )?;
             }
         }
 
         // Draw caption in footer area (right-aligned, muted)
         if let Some(caption) = &scene.labels.caption {
-            let caption_style = TextStyle::from((
-                "sans-serif",
-                scale_i32(11, pixel_scale)
-            ).into_font()).color(&resolved_theme.axis_text.color)
-                .pos(Pos::new(HPos::Right, VPos::Center));
+            let caption_style =
+                TextStyle::from(("sans-serif", scale_i32(11, pixel_scale)).into_font())
+                    .color(&resolved_theme.axis_text.color)
+                    .pos(Pos::new(HPos::Right, VPos::Center));
             let (w, _h) = footer_area.dim_in_pixel();
             footer_area.draw_text(
                 caption,
                 &caption_style,
-                ((w as i32) - scale_i32(15, pixel_scale), scale_i32(10, pixel_scale)),
+                (
+                    (w as i32) - scale_i32(15, pixel_scale),
+                    scale_i32(10, pixel_scale),
+                ),
             )?;
         }
 
@@ -723,7 +790,9 @@ impl Canvas {
 
         for panel in &scene.panels {
             let area_idx = panel.row * cols + panel.col;
-            if area_idx >= areas.len() { continue; }
+            if area_idx >= areas.len() {
+                continue;
+            }
 
             let area = &areas[area_idx];
             Canvas::draw_panel(area, panel, &resolved_theme, pixel_scale)?;
@@ -739,7 +808,8 @@ impl Canvas {
         theme: &ResolvedTheme,
         pixel_scale: u32,
     ) -> Result<()>
-    where <DB as plotters::prelude::DrawingBackend>::ErrorType: 'static
+    where
+        <DB as plotters::prelude::DrawingBackend>::ErrorType: 'static,
     {
         let x_range = panel.x_scale.range.0..panel.x_scale.range.1;
         let y_range = panel.y_scale.range.0..panel.y_scale.range.1;
@@ -765,43 +835,87 @@ impl Canvas {
             .x_label_area_size(axis_layout.x_label_area_size)
             .y_label_area_size(axis_layout.y_label_area_size);
 
-        if let Some(ticks) = datetime_tick_values(panel) {
-            let mut chart = chart_builder
-                .build_cartesian_2d(FixedKeyPointCoord::new(x_range, ticks), y_range)
-                .context("Failed to build chart")?;
-            Self::draw_panel_contents(
-                area,
-                panel,
-                theme,
-                pixel_scale,
-                axis_layout,
-                &x_axis_style,
-                &y_axis_style,
-                &axis_desc_style,
-                &mut chart,
-            )?;
-        } else {
-            let mut chart = chart_builder
-                .build_cartesian_2d(x_range, y_range)
-                .context("Failed to build chart")?;
-            Self::draw_panel_contents(
-                area,
-                panel,
-                theme,
-                pixel_scale,
-                axis_layout,
-                &x_axis_style,
-                &y_axis_style,
-                &axis_desc_style,
-                &mut chart,
-            )?;
+        let x_key_points = datetime_tick_values(panel).or_else(|| {
+            (!panel.x_scale.tick_positions.is_empty()).then(|| panel.x_scale.tick_positions.clone())
+        });
+        let y_key_points = (!panel.y_scale.tick_positions.is_empty())
+            .then(|| panel.y_scale.tick_positions.clone());
+
+        match (x_key_points, y_key_points) {
+            (Some(x_ticks), Some(y_ticks)) => {
+                let mut chart = chart_builder
+                    .build_cartesian_2d(
+                        FixedKeyPointCoord::new(x_range, x_ticks),
+                        FixedKeyPointCoord::new(y_range, y_ticks),
+                    )
+                    .context("Failed to build chart")?;
+                Self::draw_panel_contents(
+                    area,
+                    panel,
+                    theme,
+                    pixel_scale,
+                    axis_layout,
+                    &x_axis_style,
+                    &y_axis_style,
+                    &axis_desc_style,
+                    &mut chart,
+                )?;
+            }
+            (Some(x_ticks), None) => {
+                let mut chart = chart_builder
+                    .build_cartesian_2d(FixedKeyPointCoord::new(x_range, x_ticks), y_range)
+                    .context("Failed to build chart")?;
+                Self::draw_panel_contents(
+                    area,
+                    panel,
+                    theme,
+                    pixel_scale,
+                    axis_layout,
+                    &x_axis_style,
+                    &y_axis_style,
+                    &axis_desc_style,
+                    &mut chart,
+                )?;
+            }
+            (None, Some(y_ticks)) => {
+                let mut chart = chart_builder
+                    .build_cartesian_2d(x_range, FixedKeyPointCoord::new(y_range, y_ticks))
+                    .context("Failed to build chart")?;
+                Self::draw_panel_contents(
+                    area,
+                    panel,
+                    theme,
+                    pixel_scale,
+                    axis_layout,
+                    &x_axis_style,
+                    &y_axis_style,
+                    &axis_desc_style,
+                    &mut chart,
+                )?;
+            }
+            (None, None) => {
+                let mut chart = chart_builder
+                    .build_cartesian_2d(x_range, y_range)
+                    .context("Failed to build chart")?;
+                Self::draw_panel_contents(
+                    area,
+                    panel,
+                    theme,
+                    pixel_scale,
+                    axis_layout,
+                    &x_axis_style,
+                    &y_axis_style,
+                    &axis_desc_style,
+                    &mut chart,
+                )?;
+            }
         }
 
         Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn draw_panel_contents<'a, DB, X>(
+    fn draw_panel_contents<'a, DB, X, Y>(
         area: &DrawingArea<DB, plotters::coord::Shift>,
         panel: &PanelScene,
         theme: &ResolvedTheme,
@@ -810,14 +924,14 @@ impl Canvas {
         x_axis_style: &TextStyle,
         y_axis_style: &TextStyle,
         axis_desc_style: &TextStyle,
-        chart: &mut ChartContext<'a, DB, Cartesian2d<X, RangedCoordf64>>,
+        chart: &mut ChartContext<'a, DB, Cartesian2d<X, Y>>,
     ) -> Result<()>
     where
         DB: DrawingBackend + 'a,
         DB::ErrorType: 'static,
         X: Ranged<ValueType = f64> + ValueFormatter<f64>,
+        Y: Ranged<ValueType = f64> + ValueFormatter<f64>,
     {
-
         // Configure Mesh & Labels
         let mut mesh = chart.configure_mesh();
 
@@ -833,7 +947,9 @@ impl Canvas {
             // Major Grid
             match &theme.panel_grid_major {
                 Some(grid_style) => {
-                    let grid_color = grid_style.color.stroke_width(to_stroke_width(grid_style.width));
+                    let grid_color = grid_style
+                        .color
+                        .stroke_width(to_stroke_width(grid_style.width));
                     mesh.bold_line_style(grid_color);
                 }
                 None => {
@@ -845,7 +961,9 @@ impl Canvas {
             // Minor Grid
             match &theme.panel_grid_minor {
                 Some(grid_style) => {
-                    let grid_color = grid_style.color.stroke_width(to_stroke_width(grid_style.width));
+                    let grid_color = grid_style
+                        .color
+                        .stroke_width(to_stroke_width(grid_style.width));
                     mesh.light_line_style(grid_color);
                 }
                 None => {
@@ -857,7 +975,11 @@ impl Canvas {
             // Axis line styling
             match &theme.axis_line {
                 Some(axis_style) => {
-                    mesh.axis_style(axis_style.color.stroke_width(to_stroke_width(axis_style.width)));
+                    mesh.axis_style(
+                        axis_style
+                            .color
+                            .stroke_width(to_stroke_width(axis_style.width)),
+                    );
                 }
                 None => {
                     // Blank - hide axis lines
@@ -884,7 +1006,7 @@ impl Canvas {
         if let Some(x_label) = &panel.x_label {
             mesh.x_desc(x_label);
         }
-        
+
         // Custom X Labels if categorical
         let categories_x = panel.x_scale.categories.clone();
         let formatter_x = move |v: &f64| {
@@ -892,7 +1014,7 @@ impl Canvas {
             if (v - v.round()).abs() > 1e-6 {
                 return "".to_string();
             }
-            
+
             let idx = v.round() as usize;
             if idx < categories_x.len() {
                 categories_x[idx].clone()
@@ -900,28 +1022,33 @@ impl Canvas {
                 "".to_string()
             }
         };
-        let datetime_label_format = panel.x_scale.datetime.as_ref()
+        let datetime_label_format = panel
+            .x_scale
+            .datetime
+            .as_ref()
             .map(|datetime| datetime.label_format.clone())
             .unwrap_or_default();
         let formatter_datetime = |v: &f64| format_datetime_tick(*v, &datetime_label_format);
 
         // Nice tick formatters for numeric axes
         let x_ticks = panel.x_scale.tick_positions.clone();
+        let x_transform = panel.x_scale.transform;
         let nice_formatter_x = move |v: &f64| {
             // Snap to nearest precomputed tick if close enough
             for t in &x_ticks {
                 if (v - t).abs() < (v.abs().max(t.abs())) * 1e-6 + 1e-12 {
-                    return crate::scale::format_nice_number(*t);
+                    return format_axis_tick(*t, x_transform);
                 }
             }
             String::new()
         };
 
         let y_ticks = panel.y_scale.tick_positions.clone();
+        let y_transform = panel.y_scale.transform;
         let nice_formatter_y = move |v: &f64| {
             for t in &y_ticks {
                 if (v - t).abs() < (v.abs().max(t.abs())) * 1e-6 + 1e-12 {
-                    return crate::scale::format_nice_number(*t);
+                    return format_axis_tick(*t, y_transform);
                 }
             }
             String::new()
@@ -958,111 +1085,330 @@ impl Canvas {
             mesh.y_labels(panel.y_scale.tick_positions.len());
             mesh.y_label_formatter(&nice_formatter_y);
         }
-        
+
         mesh.draw().context("Failed to draw mesh")?;
 
-        draw_manual_rotated_x_tick_labels(area, chart, panel, axis_layout, x_axis_style, theme.axis_text.angle)?;
+        draw_manual_rotated_x_tick_labels(
+            area,
+            chart,
+            panel,
+            axis_layout,
+            x_axis_style,
+            theme.axis_text.angle,
+        )?;
         draw_manual_y_axis_desc(area, chart, panel, axis_layout, axis_desc_style)?;
 
         // Draw Commands
         for cmd in &panel.commands {
             match cmd {
-                DrawCommand::DrawLine { points, style, legend } => {
+                DrawCommand::DrawLine {
+                    points,
+                    style,
+                    legend,
+                } => {
                     let color = parse_color(&style.color, BLUE);
-                    let stroke_width = to_stroke_width(scale_f64(style.width.unwrap_or(2.0), pixel_scale));
+                    let stroke_width =
+                        to_stroke_width(scale_f64(style.width.unwrap_or(2.0), pixel_scale));
                     let alpha = style.alpha.unwrap_or(1.0);
                     let color_style = color.mix(alpha).stroke_width(stroke_width);
 
-                    let series = chart.draw_series(LineSeries::new(points.iter().cloned(), color_style))
+                    let series = chart
+                        .draw_series(LineSeries::new(points.iter().cloned(), color_style))
                         .context("Failed to draw line")?;
 
                     if let Some(label) = legend {
-                        series.label(label)
-                            .legend(move |(x, y)| {
-                                PathElement::new(
-                                    vec![(x, y), (x + scale_i32(20, pixel_scale), y)],
-                                    color.mix(alpha).stroke_width(stroke_width),
-                                )
-                            });
+                        series.label(label).legend(move |(x, y)| {
+                            PathElement::new(
+                                vec![(x, y), (x + scale_i32(20, pixel_scale), y)],
+                                color.mix(alpha).stroke_width(stroke_width),
+                            )
+                        });
                     }
                 }
-                DrawCommand::DrawPoint { points, style, legend } => {
+                DrawCommand::DrawPoint {
+                    points,
+                    style,
+                    legend,
+                } => {
                     let color = parse_color(&style.color, BLUE);
                     let size = to_marker_size(scale_f64(style.size.unwrap_or(3.0), pixel_scale));
                     let alpha = style.alpha.unwrap_or(1.0);
                     let color_style = color.mix(alpha).filled();
+                    let stroke_style = color
+                        .mix(alpha)
+                        .stroke_width(to_stroke_width(scale_f64(2.0, pixel_scale)));
+                    let shape = style
+                        .shape
+                        .as_deref()
+                        .unwrap_or("circle")
+                        .to_ascii_lowercase();
 
-                    let series = chart.draw_series(points.iter().map(|(x, y)| {
-                        Circle::new((*x, *y), size, color_style)
-                    })).context("Failed to draw points")?;
+                    match shape.as_str() {
+                        "square" => {
+                            let series = chart
+                                .draw_series(points.iter().map(|(x, y)| {
+                                    EmptyElement::at((*x, *y))
+                                        + Rectangle::new(
+                                            [(-size, -size), (size, size)],
+                                            color_style,
+                                        )
+                                }))
+                                .context("Failed to draw square points")?;
 
-                    if let Some(label) = legend {
-                        series.label(label)
-                            .legend(move |(x, y)| {
-                                Circle::new((x + scale_i32(10, pixel_scale), y), size, color.mix(alpha).filled())
-                            });
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    EmptyElement::at((x + scale_i32(10, pixel_scale), y))
+                                        + Rectangle::new(
+                                            [(-size, -size), (size, size)],
+                                            color.mix(alpha).filled(),
+                                        )
+                                });
+                            }
+                        }
+                        "triangle" => {
+                            let series =
+                                chart
+                                    .draw_series(points.iter().map(|(x, y)| {
+                                        TriangleMarker::new((*x, *y), size, color_style)
+                                    }))
+                                    .context("Failed to draw triangle points")?;
+
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    TriangleMarker::new(
+                                        (x + scale_i32(10, pixel_scale), y),
+                                        size,
+                                        color.mix(alpha).filled(),
+                                    )
+                                });
+                            }
+                        }
+                        "diamond" => {
+                            let series = chart
+                                .draw_series(points.iter().map(|(x, y)| {
+                                    EmptyElement::at((*x, *y))
+                                        + Polygon::new(
+                                            vec![(0, -size), (size, 0), (0, size), (-size, 0)],
+                                            color_style,
+                                        )
+                                }))
+                                .context("Failed to draw diamond points")?;
+
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    EmptyElement::at((x + scale_i32(10, pixel_scale), y))
+                                        + Polygon::new(
+                                            vec![(0, -size), (size, 0), (0, size), (-size, 0)],
+                                            color.mix(alpha).filled(),
+                                        )
+                                });
+                            }
+                        }
+                        "cross" | "plus" => {
+                            let series = chart
+                                .draw_series(points.iter().map(|(x, y)| {
+                                    EmptyElement::at((*x, *y))
+                                        + PathElement::new(
+                                            vec![(-size, 0), (size, 0)],
+                                            stroke_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(0, -size), (0, size)],
+                                            stroke_style,
+                                        )
+                                }))
+                                .context("Failed to draw cross points")?;
+
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    let legend_style = color
+                                        .mix(alpha)
+                                        .stroke_width(to_stroke_width(scale_f64(2.0, pixel_scale)));
+                                    EmptyElement::at((x + scale_i32(10, pixel_scale), y))
+                                        + PathElement::new(
+                                            vec![(-size, 0), (size, 0)],
+                                            legend_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(0, -size), (0, size)],
+                                            legend_style,
+                                        )
+                                });
+                            }
+                        }
+                        "x" | "xcross" => {
+                            let series = chart
+                                .draw_series(points.iter().map(|(x, y)| {
+                                    EmptyElement::at((*x, *y))
+                                        + PathElement::new(
+                                            vec![(-size, -size), (size, size)],
+                                            stroke_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(-size, size), (size, -size)],
+                                            stroke_style,
+                                        )
+                                }))
+                                .context("Failed to draw x-shaped points")?;
+
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    let legend_style = color
+                                        .mix(alpha)
+                                        .stroke_width(to_stroke_width(scale_f64(2.0, pixel_scale)));
+                                    EmptyElement::at((x + scale_i32(10, pixel_scale), y))
+                                        + PathElement::new(
+                                            vec![(-size, -size), (size, size)],
+                                            legend_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(-size, size), (size, -size)],
+                                            legend_style,
+                                        )
+                                });
+                            }
+                        }
+                        "star" => {
+                            let series = chart
+                                .draw_series(points.iter().map(|(x, y)| {
+                                    EmptyElement::at((*x, *y))
+                                        + PathElement::new(
+                                            vec![(-size, 0), (size, 0)],
+                                            stroke_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(0, -size), (0, size)],
+                                            stroke_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(-size, -size), (size, size)],
+                                            stroke_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(-size, size), (size, -size)],
+                                            stroke_style,
+                                        )
+                                }))
+                                .context("Failed to draw star points")?;
+
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    let legend_style = color
+                                        .mix(alpha)
+                                        .stroke_width(to_stroke_width(scale_f64(2.0, pixel_scale)));
+                                    EmptyElement::at((x + scale_i32(10, pixel_scale), y))
+                                        + PathElement::new(
+                                            vec![(-size, 0), (size, 0)],
+                                            legend_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(0, -size), (0, size)],
+                                            legend_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(-size, -size), (size, size)],
+                                            legend_style,
+                                        )
+                                        + PathElement::new(
+                                            vec![(-size, size), (size, -size)],
+                                            legend_style,
+                                        )
+                                });
+                            }
+                        }
+                        _ => {
+                            let series = chart
+                                .draw_series(
+                                    points
+                                        .iter()
+                                        .map(|(x, y)| Circle::new((*x, *y), size, color_style)),
+                                )
+                                .context("Failed to draw points")?;
+
+                            if let Some(label) = legend {
+                                series.label(label).legend(move |(x, y)| {
+                                    Circle::new(
+                                        (x + scale_i32(10, pixel_scale), y),
+                                        size,
+                                        color.mix(alpha).filled(),
+                                    )
+                                });
+                            }
+                        }
                     }
                 }
-                DrawCommand::DrawRect { tl, br, style, legend } => {
+                DrawCommand::DrawRect {
+                    tl,
+                    br,
+                    style,
+                    legend,
+                } => {
                     let color = parse_color(&style.color, BLUE);
                     let alpha = style.alpha.unwrap_or(1.0);
                     let color_style = color.mix(alpha).filled();
 
-                    let series = chart.draw_series(std::iter::once(Rectangle::new(
-                        [*tl, *br],
-                        color_style
-                    ))).context("Failed to draw rect")?;
-                    
+                    let series = chart
+                        .draw_series(std::iter::once(Rectangle::new([*tl, *br], color_style)))
+                        .context("Failed to draw rect")?;
+
                     if let Some(label) = legend {
-                        series.label(label)
-                            .legend(move |(x, y)| {
-                                Rectangle::new(
-                                    [
-                                        (x, y - scale_i32(5, pixel_scale)),
-                                        (x + scale_i32(15, pixel_scale), y + scale_i32(5, pixel_scale)),
-                                    ],
-                                    color.mix(alpha).filled(),
-                                )
-                            });
+                        series.label(label).legend(move |(x, y)| {
+                            Rectangle::new(
+                                [
+                                    (x, y - scale_i32(5, pixel_scale)),
+                                    (
+                                        x + scale_i32(15, pixel_scale),
+                                        y + scale_i32(5, pixel_scale),
+                                    ),
+                                ],
+                                color.mix(alpha).filled(),
+                            )
+                        });
                     }
                 }
-                DrawCommand::DrawPolygon { points, style, legend } => {
+                DrawCommand::DrawPolygon {
+                    points,
+                    style,
+                    legend,
+                } => {
                     let color = parse_color(&style.color, BLUE);
                     let alpha = style.alpha.unwrap_or(0.5);
                     let color_style = color.mix(alpha).filled();
 
-                    let series = chart.draw_series(std::iter::once(Polygon::new(
-                        points.clone(),
-                        color_style.clone()
-                    ))).context("Failed to draw polygon")?;
+                    let series = chart
+                        .draw_series(std::iter::once(Polygon::new(
+                            points.clone(),
+                            color_style.clone(),
+                        )))
+                        .context("Failed to draw polygon")?;
 
                     if let Some(label) = legend {
-                        series.label(label)
-                            .legend(move |(x, y)| {
-                                Rectangle::new(
-                                    [
-                                        (x, y - scale_i32(5, pixel_scale)),
-                                        (x + scale_i32(15, pixel_scale), y + scale_i32(5, pixel_scale)),
-                                    ],
-                                    color_style.clone(),
-                                )
-                            });
+                        series.label(label).legend(move |(x, y)| {
+                            Rectangle::new(
+                                [
+                                    (x, y - scale_i32(5, pixel_scale)),
+                                    (
+                                        x + scale_i32(15, pixel_scale),
+                                        y + scale_i32(5, pixel_scale),
+                                    ),
+                                ],
+                                color_style.clone(),
+                            )
+                        });
                     }
                 }
             }
         }
-        
+
         // Draw Legend only if there are actually labeled series
         use crate::parser::ast::LegendPosition;
         use plotters::chart::SeriesLabelPosition;
 
-        let has_legend_entries = panel.commands.iter().any(|cmd| {
-            match cmd {
-                DrawCommand::DrawLine { legend, .. } => legend.is_some(),
-                DrawCommand::DrawPoint { legend, .. } => legend.is_some(),
-                DrawCommand::DrawRect { legend, .. } => legend.is_some(),
-                DrawCommand::DrawPolygon { legend, .. } => legend.is_some(),
-            }
+        let has_legend_entries = panel.commands.iter().any(|cmd| match cmd {
+            DrawCommand::DrawLine { legend, .. } => legend.is_some(),
+            DrawCommand::DrawPoint { legend, .. } => legend.is_some(),
+            DrawCommand::DrawRect { legend, .. } => legend.is_some(),
+            DrawCommand::DrawPolygon { legend, .. } => legend.is_some(),
         });
 
         if has_legend_entries && theme.legend_position != LegendPosition::None {
@@ -1090,7 +1436,10 @@ impl Canvas {
             if let Some(background) = &theme.legend_background {
                 legend.background_style(background.fill);
                 if let Some(border_color) = background.border_color {
-                    legend.border_style(ShapeStyle::from(&border_color).stroke_width(to_stroke_width(background.border_width)));
+                    legend.border_style(
+                        ShapeStyle::from(&border_color)
+                            .stroke_width(to_stroke_width(background.border_width)),
+                    );
                 }
             }
 
@@ -1112,7 +1461,7 @@ fn parse_color(color_str: &Option<String>, default_color: RGBColor) -> RGBColor 
 #[cfg(test)]
 mod tests {
     use super::{build_axis_text_styles, calculate_axis_layout, scale_resolved_theme};
-    use crate::ir::{DrawCommand, PanelScene, Scale};
+    use crate::ir::{AxisTransform, DrawCommand, PanelScene, Scale};
     use crate::parser::ast::Theme;
     use plotters::drawing::IntoDrawingArea;
     use plotters::prelude::BitMapBackend;
@@ -1137,6 +1486,7 @@ mod tests {
                 ],
                 tick_positions: vec![],
                 datetime: None,
+                transform: AxisTransform::Linear,
             },
             y_scale: Scale {
                 domain: (0.0, 2.0),
@@ -1149,6 +1499,7 @@ mod tests {
                 ],
                 tick_positions: vec![],
                 datetime: None,
+                transform: AxisTransform::Linear,
             },
             commands: Vec::<DrawCommand>::new(),
         }
@@ -1168,6 +1519,7 @@ mod tests {
                 categories: vec![],
                 tick_positions: vec![],
                 datetime: None,
+                transform: AxisTransform::Linear,
             },
             y_scale: Scale {
                 domain: (0.0, 0.3),
@@ -1176,6 +1528,7 @@ mod tests {
                 categories: vec![],
                 tick_positions: vec![],
                 datetime: None,
+                transform: AxisTransform::Linear,
             },
             commands: Vec::<DrawCommand>::new(),
         }
@@ -1189,17 +1542,19 @@ mod tests {
         let panel = sample_panel();
 
         let (_, y_axis_style, axis_desc_style) = build_axis_text_styles(&theme);
-        let layout = calculate_axis_layout(
-            &area,
-            &panel,
-            &theme,
-            &y_axis_style,
-            &axis_desc_style,
-            1,
-        );
+        let layout =
+            calculate_axis_layout(&area, &panel, &theme, &y_axis_style, &axis_desc_style, 1);
 
-        assert!(layout.x_label_area_size > 30, "expected bottom label area to grow, got {}", layout.x_label_area_size);
-        assert!(layout.y_label_area_size > 40, "expected left label area to grow, got {}", layout.y_label_area_size);
+        assert!(
+            layout.x_label_area_size > 30,
+            "expected bottom label area to grow, got {}",
+            layout.x_label_area_size
+        );
+        assert!(
+            layout.y_label_area_size > 40,
+            "expected left label area to grow, got {}",
+            layout.y_label_area_size
+        );
     }
 
     #[test]
@@ -1216,18 +1571,23 @@ mod tests {
         ];
 
         let (_, y_axis_style, axis_desc_style) = build_axis_text_styles(&theme);
-        let layout = calculate_axis_layout(
-            &area,
-            &panel,
-            &theme,
-            &y_axis_style,
-            &axis_desc_style,
-            1,
-        );
+        let layout =
+            calculate_axis_layout(&area, &panel, &theme, &y_axis_style, &axis_desc_style, 1);
 
-        assert!(layout.x_label_area_size >= 80, "expected rotated labels to reserve more space, got {}", layout.x_label_area_size);
-        assert!(layout.x_tick_gap >= 12, "expected rotated labels to reserve a larger tick gap, got {}", layout.x_tick_gap);
-        assert!(layout.manual_rotated_x_labels, "expected rotated categorical labels to use manual placement");
+        assert!(
+            layout.x_label_area_size >= 80,
+            "expected rotated labels to reserve more space, got {}",
+            layout.x_label_area_size
+        );
+        assert!(
+            layout.x_tick_gap >= 12,
+            "expected rotated labels to reserve a larger tick gap, got {}",
+            layout.x_tick_gap
+        );
+        assert!(
+            layout.manual_rotated_x_labels,
+            "expected rotated categorical labels to use manual placement"
+        );
     }
 
     #[test]
@@ -1238,17 +1598,18 @@ mod tests {
         let panel = numeric_y_panel();
 
         let (_, y_axis_style, axis_desc_style) = build_axis_text_styles(&theme);
-        let layout = calculate_axis_layout(
-            &area,
-            &panel,
-            &theme,
-            &y_axis_style,
-            &axis_desc_style,
-            1,
-        );
+        let layout =
+            calculate_axis_layout(&area, &panel, &theme, &y_axis_style, &axis_desc_style, 1);
 
-        assert!(layout.max_y_label_width > 0, "expected numeric y labels to reserve width");
-        assert!(layout.y_label_area_size > 40, "expected left label area to grow, got {}", layout.y_label_area_size);
+        assert!(
+            layout.max_y_label_width > 0,
+            "expected numeric y labels to reserve width"
+        );
+        assert!(
+            layout.y_label_area_size > 40,
+            "expected left label area to grow, got {}",
+            layout.y_label_area_size
+        );
     }
 
     #[test]

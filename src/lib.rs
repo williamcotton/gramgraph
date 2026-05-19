@@ -1,21 +1,21 @@
 // Library exports for gramgraph
 
 pub mod csv_reader;
+pub mod data;
+pub mod datetime;
 pub mod graph;
 pub mod palette;
 pub mod parser;
 pub mod runtime;
-pub mod data;
-pub mod datetime;
 
 // New Architecture Modules
-pub mod ir;
-pub mod resolve;
-pub mod transform;
-pub mod scale;
 pub mod compiler;
-pub mod theme_resolve;
+pub mod ir;
 pub mod preprocessor;
+pub mod resolve;
+pub mod scale;
+pub mod theme_resolve;
+pub mod transform;
 
 use serde::Deserialize;
 
@@ -38,8 +38,12 @@ pub struct RenderOptions {
     pub format: OutputFormat,
 }
 
-fn default_width() -> u32 { 800 }
-fn default_height() -> u32 { 600 }
+fn default_width() -> u32 {
+    800
+}
+fn default_height() -> u32 {
+    600
+}
 
 impl Default for RenderOptions {
     fn default() -> Self {

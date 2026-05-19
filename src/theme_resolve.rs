@@ -21,7 +21,9 @@
 //!     └── panel_grid_minor
 //! ```
 
-use crate::parser::ast::{Theme, ThemeElement, ElementLine, ElementRect, ElementText, LegendPosition};
+use crate::parser::ast::{
+    ElementLine, ElementRect, ElementText, LegendPosition, Theme, ThemeElement,
+};
 use plotters::style::RGBColor;
 
 // === Resolved Types (no Options - fully concrete) ===
@@ -79,11 +81,11 @@ pub struct ResolvedTheme {
     pub plot_background: ResolvedRect,
     pub panel_background: ResolvedRect,
     pub plot_title: ResolvedText,
-    pub panel_grid_major: Option<ResolvedLine>,  // None if Blank
-    pub panel_grid_minor: Option<ResolvedLine>,  // None if Blank
+    pub panel_grid_major: Option<ResolvedLine>, // None if Blank
+    pub panel_grid_minor: Option<ResolvedLine>, // None if Blank
     pub axis_text: ResolvedText,
-    pub axis_line: Option<ResolvedLine>,         // None if Blank
-    pub axis_ticks: Option<ResolvedLine>,        // None if Blank
+    pub axis_line: Option<ResolvedLine>,  // None if Blank
+    pub axis_ticks: Option<ResolvedLine>, // None if Blank
     pub legend_position: LegendPosition,
     pub legend_background: Option<ResolvedRect>, // None if Blank
     pub legend_text: ResolvedText,
@@ -99,7 +101,7 @@ impl Default for ResolvedText {
     fn default() -> Self {
         ResolvedText {
             family: "sans-serif".to_string(),
-            color: RGBColor(0, 0, 0),  // Black
+            color: RGBColor(0, 0, 0), // Black
             size: 12.0,
             face: FontFace::Plain,
             angle: 0.0,
@@ -112,7 +114,7 @@ impl Default for ResolvedText {
 impl Default for ResolvedLine {
     fn default() -> Self {
         ResolvedLine {
-            color: RGBColor(0, 0, 0),  // Black
+            color: RGBColor(0, 0, 0), // Black
             width: 1.0,
             linetype: LineType::Solid,
         }
@@ -122,7 +124,7 @@ impl Default for ResolvedLine {
 impl Default for ResolvedRect {
     fn default() -> Self {
         ResolvedRect {
-            fill: RGBColor(255, 255, 255),  // White
+            fill: RGBColor(255, 255, 255), // White
             border_color: None,
             border_width: 0.0,
         }
@@ -333,7 +335,11 @@ impl Theme {
     }
 
     /// Resolve an optional line element (can be Blank)
-    fn resolve_optional_line(&self, element: &ThemeElement, base: &ResolvedLine) -> Option<ResolvedLine> {
+    fn resolve_optional_line(
+        &self,
+        element: &ThemeElement,
+        base: &ResolvedLine,
+    ) -> Option<ResolvedLine> {
         match element {
             ThemeElement::Line(l) => {
                 let mut resolved = base.clone();

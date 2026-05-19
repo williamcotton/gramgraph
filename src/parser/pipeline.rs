@@ -1,20 +1,22 @@
 // Pipeline parser for Grammar of Graphics DSL
 
 use super::aesthetics::parse_aesthetics;
-use super::ast::{Aesthetics, AxisScale, CoordSystem, Facet, Labels, Layer, PlotSpec, Theme, ThemeElement};
+use super::ast::{
+    Aesthetics, AxisScale, CoordSystem, Facet, Labels, Layer, PlotSpec, Theme, ThemeElement,
+};
 use super::coord::parse_coord_flip;
 use super::facet::parse_facet_wrap;
 use super::geom::parse_geom;
 use super::labels::parse_labs;
+use super::lexer::ws;
 use super::scale::parse_scale_command;
 use super::theme::parse_theme_command;
-use super::lexer::ws;
 use nom::{
     branch::alt,
     bytes::complete::tag,
     combinator::{eof, map, opt},
-    multi::separated_list0,
     error::{Error, ErrorKind},
+    multi::separated_list0,
     IResult,
 };
 
@@ -22,20 +24,72 @@ use nom::{
 /// Fields from `overlay` override `base` unless they are `Inherit`.
 fn merge_themes(base: Theme, overlay: Theme) -> Theme {
     Theme {
-        line: if overlay.line != ThemeElement::Inherit { overlay.line } else { base.line },
-        rect: if overlay.rect != ThemeElement::Inherit { overlay.rect } else { base.rect },
-        text: if overlay.text != ThemeElement::Inherit { overlay.text } else { base.text },
-        plot_background: if overlay.plot_background != ThemeElement::Inherit { overlay.plot_background } else { base.plot_background },
-        plot_title: if overlay.plot_title != ThemeElement::Inherit { overlay.plot_title } else { base.plot_title },
-        panel_background: if overlay.panel_background != ThemeElement::Inherit { overlay.panel_background } else { base.panel_background },
-        panel_grid_major: if overlay.panel_grid_major != ThemeElement::Inherit { overlay.panel_grid_major } else { base.panel_grid_major },
-        panel_grid_minor: if overlay.panel_grid_minor != ThemeElement::Inherit { overlay.panel_grid_minor } else { base.panel_grid_minor },
-        axis_text: if overlay.axis_text != ThemeElement::Inherit { overlay.axis_text } else { base.axis_text },
-        axis_line: if overlay.axis_line != ThemeElement::Inherit { overlay.axis_line } else { base.axis_line },
-        axis_ticks: if overlay.axis_ticks != ThemeElement::Inherit { overlay.axis_ticks } else { base.axis_ticks },
+        line: if overlay.line != ThemeElement::Inherit {
+            overlay.line
+        } else {
+            base.line
+        },
+        rect: if overlay.rect != ThemeElement::Inherit {
+            overlay.rect
+        } else {
+            base.rect
+        },
+        text: if overlay.text != ThemeElement::Inherit {
+            overlay.text
+        } else {
+            base.text
+        },
+        plot_background: if overlay.plot_background != ThemeElement::Inherit {
+            overlay.plot_background
+        } else {
+            base.plot_background
+        },
+        plot_title: if overlay.plot_title != ThemeElement::Inherit {
+            overlay.plot_title
+        } else {
+            base.plot_title
+        },
+        panel_background: if overlay.panel_background != ThemeElement::Inherit {
+            overlay.panel_background
+        } else {
+            base.panel_background
+        },
+        panel_grid_major: if overlay.panel_grid_major != ThemeElement::Inherit {
+            overlay.panel_grid_major
+        } else {
+            base.panel_grid_major
+        },
+        panel_grid_minor: if overlay.panel_grid_minor != ThemeElement::Inherit {
+            overlay.panel_grid_minor
+        } else {
+            base.panel_grid_minor
+        },
+        axis_text: if overlay.axis_text != ThemeElement::Inherit {
+            overlay.axis_text
+        } else {
+            base.axis_text
+        },
+        axis_line: if overlay.axis_line != ThemeElement::Inherit {
+            overlay.axis_line
+        } else {
+            base.axis_line
+        },
+        axis_ticks: if overlay.axis_ticks != ThemeElement::Inherit {
+            overlay.axis_ticks
+        } else {
+            base.axis_ticks
+        },
         legend_position: overlay.legend_position.or(base.legend_position),
-        legend_background: if overlay.legend_background != ThemeElement::Inherit { overlay.legend_background } else { base.legend_background },
-        legend_text: if overlay.legend_text != ThemeElement::Inherit { overlay.legend_text } else { base.legend_text },
+        legend_background: if overlay.legend_background != ThemeElement::Inherit {
+            overlay.legend_background
+        } else {
+            base.legend_background
+        },
+        legend_text: if overlay.legend_text != ThemeElement::Inherit {
+            overlay.legend_text
+        } else {
+            base.legend_text
+        },
         legend_margin: overlay.legend_margin.or(base.legend_margin),
         legend_key_size: overlay.legend_key_size.or(base.legend_key_size),
     }
@@ -60,7 +114,9 @@ fn parse_pipeline_component(input: &str) -> IResult<&str, PipelineComponent> {
         map(parse_coord_flip, PipelineComponent::Coord),
         map(parse_labs, PipelineComponent::Labels),
         map(parse_theme_command, PipelineComponent::Theme),
-        map(parse_scale_command, |(is_x, s)| PipelineComponent::Scale(is_x, s)),
+        map(parse_scale_command, |(is_x, s)| {
+            PipelineComponent::Scale(is_x, s)
+        }),
     ))(input)
 }
 
@@ -74,10 +130,7 @@ pub fn parse_plot_spec(input: &str) -> IResult<&str, PlotSpec> {
     let (input, _) = opt(ws(tag("|")))(input)?;
 
     // Parse list of components separated by "|"
-    let (input, components) = separated_list0(
-        ws(tag("|")),
-        parse_pipeline_component
-    )(input)?;
+    let (input, components) = separated_list0(ws(tag("|")), parse_pipeline_component)(input)?;
 
     // Consume trailing whitespace and ensure end of input
     let (input, _) = ws(eof)(input)?;
@@ -111,7 +164,11 @@ pub fn parse_plot_spec(input: &str) -> IResult<&str, PlotSpec> {
                 });
             }
             PipelineComponent::Scale(is_x, s) => {
-                if is_x { x_scale = Some(s); } else { y_scale = Some(s); }
+                if is_x {
+                    x_scale = Some(s);
+                } else {
+                    y_scale = Some(s);
+                }
             }
         }
     }
@@ -151,7 +208,8 @@ mod tests {
 
     #[test]
     fn test_parse_multiple_layers() {
-        let result = parse_plot_spec(r#"aes(x: one, y: two) | line(color: "red") | point(size: 5)"#);
+        let result =
+            parse_plot_spec(r#"aes(x: one, y: two) | line(color: "red") | point(size: 5)"#);
         assert!(result.is_ok());
         let (_, spec) = result.unwrap();
         assert!(spec.aesthetics.is_some());
@@ -226,7 +284,9 @@ mod tests {
 
     #[test]
     fn test_parse_plot_spec_with_facet_wrap_full() {
-        let result = parse_plot_spec(r#"aes(x: time, y: sales) | line() | facet_wrap(by: region, ncol: 2, scales: "free_x")"#);
+        let result = parse_plot_spec(
+            r#"aes(x: time, y: sales) | line() | facet_wrap(by: region, ncol: 2, scales: "free_x")"#,
+        );
         assert!(result.is_ok());
         let (_, spec) = result.unwrap();
         assert!(spec.facet.is_some());
@@ -245,12 +305,20 @@ mod tests {
 
     #[test]
     fn test_parse_plot_spec_with_labs_and_theme() {
-        let result = parse_plot_spec(r#"aes(x: x, y: y) | line() | labs(title: "My Plot", x: "Time") | theme(legend_position: "none")"#);
+        let result = parse_plot_spec(
+            r#"aes(x: x, y: y) | line() | labs(title: "My Plot", x: "Time") | theme(legend_position: "none")"#,
+        );
         assert!(result.is_ok());
         let (_, spec) = result.unwrap();
-        assert_eq!(spec.labels.as_ref().unwrap().title, Some("My Plot".to_string()));
+        assert_eq!(
+            spec.labels.as_ref().unwrap().title,
+            Some("My Plot".to_string())
+        );
         assert_eq!(spec.labels.as_ref().unwrap().x, Some("Time".to_string()));
-        assert_eq!(spec.theme.as_ref().unwrap().legend_position, Some(crate::parser::ast::LegendPosition::None));
+        assert_eq!(
+            spec.theme.as_ref().unwrap().legend_position,
+            Some(crate::parser::ast::LegendPosition::None)
+        );
     }
 
     #[test]
@@ -266,10 +334,10 @@ mod tests {
         assert!(spec.aesthetics.is_some());
         assert_eq!(spec.layers.len(), 1);
         if let crate::parser::ast::Layer::Bar(b) = &spec.layers[0] {
-             match b.stat {
-                 crate::parser::ast::Stat::Bin { bins } => assert_eq!(bins, 5),
-                 _ => panic!("Expected Bin stat"),
-             }
+            match b.stat {
+                crate::parser::ast::Stat::Bin { bins } => assert_eq!(bins, 5),
+                _ => panic!("Expected Bin stat"),
+            }
         } else {
             panic!("Expected Bar layer (histogram)");
         }

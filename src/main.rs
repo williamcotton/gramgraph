@@ -1,4 +1,4 @@
-use gramgraph::{csv_reader, parser, runtime, RenderOptions, OutputFormat, data::PlotData};
+use gramgraph::{csv_reader, data::PlotData, parser, runtime, OutputFormat, RenderOptions};
 
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, ValueEnum};
@@ -66,11 +66,13 @@ pub fn process_dsl(
         .context("Failed to expand variables")?;
 
     // Read CSV
-    let mut reader = ReaderBuilder::new().has_headers(true).from_reader(csv_content);
+    let mut reader = ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(csv_content);
 
     let headers = reader
         .headers()
-        .context("Failed to read CSV headers")? 
+        .context("Failed to read CSV headers")?
         .iter()
         .map(|s| s.to_string())
         .collect();
@@ -141,7 +143,12 @@ mod tests {
     fn test_process_dsl_line_chart() {
         let csv = "x,y\n1,10\n2,20\n3,30\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: x, y: y) | line()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: x, y: y) | line()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_ok());
         let png_bytes = result.unwrap();
         assert!(png_bytes.len() > 8);
@@ -152,7 +159,12 @@ mod tests {
     fn test_process_dsl_parse_error() {
         let csv = "x,y\n1,10\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("invalid syntax here", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "invalid syntax here",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Parse error"));
     }
@@ -161,26 +173,47 @@ mod tests {
     fn test_process_dsl_csv_error() {
         let csv = "x,y\n"; // No data rows
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: x, y: y) | line()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: x, y: y) | line()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("at least one data row"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("at least one data row"));
     }
 
     #[test]
     fn test_process_dsl_column_not_found() {
         let csv = "a,b\n1,10\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: x, y: y) | line()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: x, y: y) | line()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_err());
         // Error is wrapped with context, so check for the context message
-        assert!(result.unwrap_err().to_string().contains("Failed to render plot"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to render plot"));
     }
 
     #[test]
     fn test_process_dsl_bar_chart() {
         let csv = "cat,val\nA,10\nB,20\nC,30\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: cat, y: val) | bar()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: cat, y: val) | bar()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_ok());
     }
 
@@ -188,7 +221,12 @@ mod tests {
     fn test_process_dsl_multiple_layers() {
         let csv = "x,y\n1,10\n2,20\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: x, y: y) | line() | point()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: x, y: y) | line() | point()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_ok());
     }
 
@@ -197,7 +235,12 @@ mod tests {
         // Trailing unparsed input causes parse error
         let csv = "x,y\n1,10\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("line() extra_stuff", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "line() extra_stuff",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Parse error"));
     }
@@ -214,7 +257,12 @@ mod tests {
     fn test_process_dsl_unicode_data() {
         let csv = "x,température\n1,20.5\n2,22.0\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: x, y: température) | line()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: x, y: température) | line()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_ok());
     }
 
@@ -222,7 +270,12 @@ mod tests {
     fn test_process_dsl_point_chart() {
         let csv = "height,weight\n170,70\n180,85\n160,60\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: height, y: weight) | point(size: 5)", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: height, y: weight) | point(size: 5)",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_ok());
     }
 
@@ -234,7 +287,12 @@ mod tests {
         let mut vars = HashMap::new();
         vars.insert("xcol".to_string(), "time".to_string());
         vars.insert("ycol".to_string(), "temp".to_string());
-        let result = process_dsl("aes(x: $xcol, y: $ycol) | line()", cursor, RenderOptions::default(), vars);
+        let result = process_dsl(
+            "aes(x: $xcol, y: $ycol) | line()",
+            cursor,
+            RenderOptions::default(),
+            vars,
+        );
         assert!(result.is_ok());
     }
 
@@ -246,7 +304,12 @@ mod tests {
         let mut vars = HashMap::new();
         // Quote the value to make it a string literal
         vars.insert("line_color".to_string(), "\"red\"".to_string());
-        let result = process_dsl("aes(x: x, y: y) | line(color: $line_color)", cursor, RenderOptions::default(), vars);
+        let result = process_dsl(
+            "aes(x: x, y: y) | line(color: $line_color)",
+            cursor,
+            RenderOptions::default(),
+            vars,
+        );
         assert!(result.is_ok());
     }
 
@@ -255,7 +318,12 @@ mod tests {
         // Test that undefined variables cause an error
         let csv = "x,y\n1,10\n";
         let cursor = Cursor::new(csv);
-        let result = process_dsl("aes(x: $undefined, y: y) | line()", cursor, RenderOptions::default(), HashMap::new());
+        let result = process_dsl(
+            "aes(x: $undefined, y: y) | line()",
+            cursor,
+            RenderOptions::default(),
+            HashMap::new(),
+        );
         assert!(result.is_err());
         // Check the full error chain
         let err_str = format!("{:?}", result.unwrap_err());

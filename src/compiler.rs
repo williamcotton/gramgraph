@@ -1,8 +1,11 @@
-use anyhow::Result;
-use crate::ir::{RenderData, ScaleSystem, ResolvedSpec, SceneGraph, PanelScene, DrawCommand, RenderStyle};
-use crate::parser::ast::{Layer, BarPosition};
-use crate::graph::{LineStyle, PointStyle, BarStyle, BoxplotStyle, RibbonStyle};
+use crate::graph::{BarStyle, BoxplotStyle, LineStyle, PointStyle, RibbonStyle};
+use crate::ir::{
+    DrawCommand, PanelScales, PanelScene, RenderData, RenderStyle, ResolvedSpec, Scale,
+    ScaleSystem, SceneGraph,
+};
+use crate::parser::ast::{BarPosition, Layer};
 use crate::RenderOptions;
+use anyhow::{anyhow, Result};
 
 use std::collections::{HashMap, HashSet};
 
@@ -15,11 +18,11 @@ use std::collections::{HashMap, HashSet};
 fn value_to_heatmap_color(t: f64) -> String {
     // Simplified viridis colormap with 5 control points
     let colors: [(f64, f64, f64); 5] = [
-        (68.0, 1.0, 84.0),      // Dark purple (t=0.0)
-        (59.0, 82.0, 139.0),    // Blue (t=0.25)
-        (33.0, 145.0, 140.0),   // Teal (t=0.5)
-        (94.0, 201.0, 98.0),    // Green (t=0.75)
-        (253.0, 231.0, 37.0),   // Yellow (t=1.0)
+        (68.0, 1.0, 84.0),    // Dark purple (t=0.0)
+        (59.0, 82.0, 139.0),  // Blue (t=0.25)
+        (33.0, 145.0, 140.0), // Teal (t=0.5)
+        (94.0, 201.0, 98.0),  // Green (t=0.75)
+        (253.0, 231.0, 37.0), // Yellow (t=1.0)
     ];
 
     let t = t.clamp(0.0, 1.0);
@@ -155,10 +158,59 @@ fn interpolate_density_at_y(target_y: f64, density: &[f64], density_y: &[f64]) -
     }
 }
 
+fn transform_axis_value(value: f64, scale: &Scale, axis_name: &str) -> Result<f64> {
+    scale.transform.apply(value).ok_or_else(|| {
+        anyhow!(
+            "{} scale cannot transform value {} with {:?}",
+            axis_name,
+            value,
+            scale.transform,
+        )
+    })
+}
+
+fn transform_data_point(
+    x: f64,
+    y: f64,
+    scales: &PanelScales,
+    is_flipped: bool,
+) -> Result<(f64, f64)> {
+    let x = transform_axis_value(x, &scales.x, "x")?;
+    let y = transform_axis_value(y, &scales.y, "y")?;
+
+    Ok(if is_flipped { (y, x) } else { (x, y) })
+}
+
+fn transform_visual_point(
+    x: f64,
+    y: f64,
+    scales: &PanelScales,
+    is_flipped: bool,
+) -> Result<(f64, f64)> {
+    let x_scale = if is_flipped { &scales.y } else { &scales.x };
+    let y_scale = if is_flipped { &scales.x } else { &scales.y };
+
+    Ok((
+        transform_axis_value(x, x_scale, "x")?,
+        transform_axis_value(y, y_scale, "y")?,
+    ))
+}
+
+fn transform_visual_points(
+    points: Vec<(f64, f64)>,
+    scales: &PanelScales,
+    is_flipped: bool,
+) -> Result<Vec<(f64, f64)>> {
+    points
+        .into_iter()
+        .map(|(x, y)| transform_visual_point(x, y, scales, is_flipped))
+        .collect()
+}
+
 /// Compile data and scales into a SceneGraph of drawing commands
 pub fn compile_geometry(
-    data: RenderData, 
-    scales: ScaleSystem, 
+    data: RenderData,
+    scales: ScaleSystem,
     spec: &ResolvedSpec,
     options: &RenderOptions,
 ) -> Result<SceneGraph> {
@@ -193,19 +245,19 @@ pub fn compile_geometry(
             // Smart Dodging: Calculate occupancy per X coordinate
             // Map: Quantized X -> List of Group Indices present at that X
             let mut x_occupancy: HashMap<i64, Vec<usize>> = HashMap::new();
-            
+
             if matches!(position, BarPosition::Dodge) {
                 for (g_idx, group) in layer_data.groups.iter().enumerate() {
                     for &x in &group.x {
                         // Quantize X to integer for categorical grouping logic
                         // (Use round() to handle float imprecision)
-                        let key = x.round() as i64; 
+                        let key = x.round() as i64;
                         x_occupancy.entry(key).or_default().push(g_idx);
                     }
                 }
                 // Sort groups at each X to ensure deterministic order (usually sorted by group key anyway)
                 for groups_at_x in x_occupancy.values_mut() {
-                    groups_at_x.sort(); 
+                    groups_at_x.sort();
                     groups_at_x.dedup(); // Handle multiple points per group at same X (if any)
                 }
             }
@@ -213,13 +265,17 @@ pub fn compile_geometry(
             for (group_idx, group) in layer_data.groups.into_iter().enumerate() {
                 match &group.style {
                     RenderStyle::Line(style) => {
-                        let points: Vec<(f64, f64)> = group.x.iter().zip(group.y.iter())
-                            .map(|(&x, &y)| if is_flipped { (y, x) } else { (x, y) })
-                            .collect();
+                        let points: Vec<(f64, f64)> = group
+                            .x
+                            .iter()
+                            .zip(group.y.iter())
+                            .map(|(&x, &y)| transform_data_point(x, y, &panel_scales, is_flipped))
+                            .collect::<Result<Vec<_>>>()?;
                         commands.push(DrawCommand::DrawLine {
                             points,
                             style: style.clone(),
-                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone())
+                            {
                                 Some(group.key.clone())
                             } else {
                                 None
@@ -227,13 +283,17 @@ pub fn compile_geometry(
                         });
                     }
                     RenderStyle::Point(style) => {
-                        let points: Vec<(f64, f64)> = group.x.iter().zip(group.y.iter())
-                            .map(|(&x, &y)| if is_flipped { (y, x) } else { (x, y) })
-                            .collect();
+                        let points: Vec<(f64, f64)> = group
+                            .x
+                            .iter()
+                            .zip(group.y.iter())
+                            .map(|(&x, &y)| transform_data_point(x, y, &panel_scales, is_flipped))
+                            .collect::<Result<Vec<_>>>()?;
                         commands.push(DrawCommand::DrawPoint {
                             points,
                             style: style.clone(),
-                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone())
+                            {
                                 Some(group.key.clone())
                             } else {
                                 None
@@ -242,20 +302,23 @@ pub fn compile_geometry(
                     }
                     RenderStyle::Bar(style) => {
                         let bar_width_ratio = style.width.unwrap_or(0.8);
-                        
+
                         for i in 0..group.x.len() {
                             let x_center = group.x[i];
                             let y_top = group.y[i];
                             let y_bottom = group.y_start[i];
-                            
+
                             // Calculate Dodge Offset for this specific point
                             let (slot_width, x_offset) = if matches!(position, BarPosition::Dodge) {
                                 let key = x_center.round() as i64;
                                 if let Some(occupants) = x_occupancy.get(&key) {
                                     let num_at_x = occupants.len();
-                                    if let Some(rank) = occupants.iter().position(|&g| g == group_idx) {
+                                    if let Some(rank) =
+                                        occupants.iter().position(|&g| g == group_idx)
+                                    {
                                         let slot = bar_width_ratio / num_at_x as f64;
-                                        let offset = (rank as f64 - (num_at_x as f64 - 1.0) / 2.0) * slot;
+                                        let offset =
+                                            (rank as f64 - (num_at_x as f64 - 1.0) / 2.0) * slot;
                                         (slot, offset)
                                     } else {
                                         (bar_width_ratio, 0.0) // Should not happen
@@ -269,21 +332,21 @@ pub fn compile_geometry(
 
                             let x_final = x_center + x_offset;
                             let half_width = slot_width / 2.0;
-                            
+
                             let tl = (x_final - half_width, y_top);
                             let br = (x_final + half_width, y_bottom);
-                            
-                            let (tl, br) = if is_flipped {
-                                ((tl.1, tl.0), (br.1, br.0))
-                            } else {
-                                (tl, br)
-                            };
+
+                            let tl = transform_data_point(tl.0, tl.1, &panel_scales, is_flipped)?;
+                            let br = transform_data_point(br.0, br.1, &panel_scales, is_flipped)?;
 
                             commands.push(DrawCommand::DrawRect {
                                 tl,
                                 br,
                                 style: style.clone(),
-                                legend: if i == 0 && has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
                                     Some(group.key.clone())
                                 } else {
                                     None
@@ -304,9 +367,12 @@ pub fn compile_geometry(
                                 let key = x_center.round() as i64;
                                 if let Some(occupants) = x_occupancy.get(&key) {
                                     let num_at_x = occupants.len();
-                                    if let Some(rank) = occupants.iter().position(|&g| g == group_idx) {
+                                    if let Some(rank) =
+                                        occupants.iter().position(|&g| g == group_idx)
+                                    {
                                         let slot = width_ratio / num_at_x as f64;
-                                        let offset = (rank as f64 - (num_at_x as f64 - 1.0) / 2.0) * slot;
+                                        let offset =
+                                            (rank as f64 - (num_at_x as f64 - 1.0) / 2.0) * slot;
                                         (slot, offset)
                                     } else {
                                         (width_ratio, 0.0)
@@ -337,34 +403,65 @@ pub fn compile_geometry(
 
                             // 1. Whiskers (lines from min/max to box edges)
                             commands.push(DrawCommand::DrawLine {
-                                points: geom.lower_whisker,
+                                points: transform_visual_points(
+                                    geom.lower_whisker,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
                                 style: whisker_style.clone(),
                                 legend: None,
                             });
                             commands.push(DrawCommand::DrawLine {
-                                points: geom.upper_whisker,
+                                points: transform_visual_points(
+                                    geom.upper_whisker,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
                                 style: whisker_style.clone(),
                                 legend: None,
                             });
 
                             // 2. Whisker caps
                             commands.push(DrawCommand::DrawLine {
-                                points: geom.min_cap,
+                                points: transform_visual_points(
+                                    geom.min_cap,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
                                 style: whisker_style.clone(),
                                 legend: None,
                             });
                             commands.push(DrawCommand::DrawLine {
-                                points: geom.max_cap,
+                                points: transform_visual_points(
+                                    geom.max_cap,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
                                 style: whisker_style.clone(),
                                 legend: None,
                             });
 
                             // 3. Box (rectangle) - legend attached here
+                            let box_tl = transform_visual_point(
+                                geom.box_tl.0,
+                                geom.box_tl.1,
+                                &panel_scales,
+                                is_flipped,
+                            )?;
+                            let box_br = transform_visual_point(
+                                geom.box_br.0,
+                                geom.box_br.1,
+                                &panel_scales,
+                                is_flipped,
+                            )?;
                             commands.push(DrawCommand::DrawRect {
-                                tl: geom.box_tl,
-                                br: geom.box_br,
+                                tl: box_tl,
+                                br: box_br,
                                 style: box_style.clone(),
-                                legend: if i == 0 && has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
                                     Some(group.key.clone())
                                 } else {
                                     None
@@ -373,7 +470,11 @@ pub fn compile_geometry(
 
                             // 4. Median line (white for contrast)
                             commands.push(DrawCommand::DrawLine {
-                                points: geom.median_line,
+                                points: transform_visual_points(
+                                    geom.median_line,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
                                 style: median_style.clone(),
                                 legend: None,
                             });
@@ -381,7 +482,11 @@ pub fn compile_geometry(
                             // 5. Outliers (if any)
                             if !geom.outlier_points.is_empty() {
                                 commands.push(DrawCommand::DrawPoint {
-                                    points: geom.outlier_points,
+                                    points: transform_visual_points(
+                                        geom.outlier_points,
+                                        &panel_scales,
+                                        is_flipped,
+                                    )?,
                                     style: outlier_style.clone(),
                                     legend: None,
                                 });
@@ -396,20 +501,21 @@ pub fn compile_geometry(
                         for i in 0..group.x.len() {
                             let x = group.x[i];
                             let y = group.y_max[i];
-                            points.push(if is_flipped { (y, x) } else { (x, y) });
+                            points.push(transform_data_point(x, y, &panel_scales, is_flipped)?);
                         }
 
                         // Backward pass: y_min
                         for i in (0..group.x.len()).rev() {
                             let x = group.x[i];
                             let y = group.y_min[i];
-                            points.push(if is_flipped { (y, x) } else { (x, y) });
+                            points.push(transform_data_point(x, y, &panel_scales, is_flipped)?);
                         }
 
                         commands.push(DrawCommand::DrawPolygon {
                             points,
                             style: style.clone(),
-                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone())
+                            {
                                 Some(group.key.clone())
                             } else {
                                 None
@@ -425,14 +531,24 @@ pub fn compile_geometry(
                         for i in 0..group.x.len() {
                             let x = group.x[i];
                             let y = group.y[i];
-                            polygon_points.push(if is_flipped { (y, x) } else { (x, y) });
+                            polygon_points.push(transform_data_point(
+                                x,
+                                y,
+                                &panel_scales,
+                                is_flipped,
+                            )?);
                         }
 
                         // Backward pass: baseline (y = 0)
                         for i in (0..group.x.len()).rev() {
                             let x = group.x[i];
                             let y = group.y_start[i]; // 0.0
-                            polygon_points.push(if is_flipped { (y, x) } else { (x, y) });
+                            polygon_points.push(transform_data_point(
+                                x,
+                                y,
+                                &panel_scales,
+                                is_flipped,
+                            )?);
                         }
 
                         // Draw filled area
@@ -442,7 +558,8 @@ pub fn compile_geometry(
                                 color: style.color.clone(),
                                 alpha: style.alpha.or(Some(0.3)),
                             },
-                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                            legend: if has_grouping && emitted_legend_keys.insert(group.key.clone())
+                            {
                                 Some(group.key.clone())
                             } else {
                                 None
@@ -450,9 +567,12 @@ pub fn compile_geometry(
                         });
 
                         // Draw outline
-                        let line_points: Vec<(f64, f64)> = group.x.iter().zip(group.y.iter())
-                            .map(|(&x, &y)| if is_flipped { (y, x) } else { (x, y) })
-                            .collect();
+                        let line_points: Vec<(f64, f64)> = group
+                            .x
+                            .iter()
+                            .zip(group.y.iter())
+                            .map(|(&x, &y)| transform_data_point(x, y, &panel_scales, is_flipped))
+                            .collect::<Result<Vec<_>>>()?;
                         commands.push(DrawCommand::DrawLine {
                             points: line_points,
                             style: LineStyle {
@@ -469,7 +589,11 @@ pub fn compile_geometry(
                         let cell_h = group.heatmap_cell_height;
                         let val_min = style.value_min;
                         let val_max = style.value_max;
-                        let val_range = if val_max != val_min { val_max - val_min } else { 1.0 };
+                        let val_range = if val_max != val_min {
+                            val_max - val_min
+                        } else {
+                            1.0
+                        };
 
                         for i in 0..group.x.len() {
                             let x_center = group.x[i];
@@ -488,11 +612,8 @@ pub fn compile_geometry(
                             let tl = (x_center - half_w, y_center + half_h);
                             let br = (x_center + half_w, y_center - half_h);
 
-                            let (tl, br) = if is_flipped {
-                                ((tl.1, tl.0), (br.1, br.0))
-                            } else {
-                                (tl, br)
-                            };
+                            let tl = transform_data_point(tl.0, tl.1, &panel_scales, is_flipped)?;
+                            let br = transform_data_point(br.0, br.1, &panel_scales, is_flipped)?;
 
                             commands.push(DrawCommand::DrawRect {
                                 tl,
@@ -518,9 +639,12 @@ pub fn compile_geometry(
                                 let key = x_center.round() as i64;
                                 if let Some(occupants) = x_occupancy.get(&key) {
                                     let num_at_x = occupants.len();
-                                    if let Some(rank) = occupants.iter().position(|&g| g == group_idx) {
+                                    if let Some(rank) =
+                                        occupants.iter().position(|&g| g == group_idx)
+                                    {
                                         let slot = width_ratio / num_at_x as f64;
-                                        let offset = (rank as f64 - (num_at_x as f64 - 1.0) / 2.0) * slot;
+                                        let offset =
+                                            (rank as f64 - (num_at_x as f64 - 1.0) / 2.0) * slot;
                                         (slot, offset)
                                     } else {
                                         (width_ratio, 0.0)
@@ -552,8 +676,10 @@ pub fn compile_geometry(
                             let mut left_side: Vec<(f64, f64)> = Vec::new();
 
                             // Get density at data boundaries by interpolation
-                            let density_at_min = interpolate_density_at_y(data_min, density, density_y);
-                            let density_at_max = interpolate_density_at_y(data_max, density, density_y);
+                            let density_at_min =
+                                interpolate_density_at_y(data_min, density, density_y);
+                            let density_at_max =
+                                interpolate_density_at_y(data_max, density, density_y);
 
                             if is_vertical {
                                 // Start with flat bottom cap at data_min
@@ -617,6 +743,8 @@ pub fn compile_geometry(
                             // Combine into closed polygon
                             let mut polygon_points = right_side;
                             polygon_points.extend(left_side);
+                            let polygon_points =
+                                transform_visual_points(polygon_points, &panel_scales, is_flipped)?;
 
                             // Draw violin body as polygon
                             commands.push(DrawCommand::DrawPolygon {
@@ -625,7 +753,10 @@ pub fn compile_geometry(
                                     color: style.color.clone(),
                                     alpha: style.alpha.or(Some(0.7)),
                                 },
-                                legend: if i == 0 && has_grouping && emitted_legend_keys.insert(group.key.clone()) {
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
                                     Some(group.key.clone())
                                 } else {
                                     None
@@ -641,13 +772,25 @@ pub fn compile_geometry(
                                 }
 
                                 // Interpolate density at this y value
-                                let half_width_at_q = interpolate_density_at_y(q_y, density, density_y) * half_width;
+                                let half_width_at_q =
+                                    interpolate_density_at_y(q_y, density, density_y) * half_width;
 
                                 let line_points = if is_vertical {
-                                    vec![(x_final - half_width_at_q, q_y), (x_final + half_width_at_q, q_y)]
+                                    vec![
+                                        (x_final - half_width_at_q, q_y),
+                                        (x_final + half_width_at_q, q_y),
+                                    ]
                                 } else {
-                                    vec![(q_y, x_final - half_width_at_q), (q_y, x_final + half_width_at_q)]
+                                    vec![
+                                        (q_y, x_final - half_width_at_q),
+                                        (q_y, x_final + half_width_at_q),
+                                    ]
                                 };
+                                let line_points = transform_visual_points(
+                                    line_points,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?;
 
                                 commands.push(DrawCommand::DrawLine {
                                     points: line_points,
@@ -666,14 +809,18 @@ pub fn compile_geometry(
         }
 
         // Determine Panel Title
-        let title = data.facet_layout.panel_titles.get(panel_data.index).cloned()
+        let title = data
+            .facet_layout
+            .panel_titles
+            .get(panel_data.index)
+            .cloned()
             .filter(|s| !s.is_empty())
             .map(|s| format!("{} = {}", spec.facet.as_ref().unwrap().col, s));
 
         // Determine Row/Col
         let row = panel_data.index / data.facet_layout.ncol;
         let col = panel_data.index % data.facet_layout.ncol;
-        
+
         let (x_scale, y_scale) = if is_flipped {
             (panel_scales.y, panel_scales.x)
         } else {
@@ -704,8 +851,11 @@ pub fn compile_geometry(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{PanelData, LayerData, GroupData, FacetLayout, RenderStyle, PanelScales, Scale, ResolvedLayer, ResolvedAesthetics};
     use crate::graph::LineStyle;
+    use crate::ir::{
+        AxisTransform, FacetLayout, GroupData, LayerData, PanelData, PanelScales, RenderStyle,
+        ResolvedAesthetics, ResolvedLayer, Scale,
+    };
     use crate::parser::ast::{Layer, LineLayer};
 
     fn make_test_data() -> (RenderData, ScaleSystem, ResolvedSpec) {
@@ -737,13 +887,33 @@ mod tests {
                     }],
                 }],
             }],
-            facet_layout: FacetLayout { nrow: 1, ncol: 1, panel_titles: vec![] },
+            facet_layout: FacetLayout {
+                nrow: 1,
+                ncol: 1,
+                panel_titles: vec![],
+            },
         };
 
         let scales = ScaleSystem {
             panels: vec![PanelScales {
-                x: Scale { domain: (0.0, 1.0), range: (0.0, 1.0), is_categorical: false, categories: vec![], tick_positions: vec![], datetime: None },
-                y: Scale { domain: (0.0, 20.0), range: (0.0, 20.0), is_categorical: false, categories: vec![], tick_positions: vec![], datetime: None },
+                x: Scale {
+                    domain: (0.0, 1.0),
+                    range: (0.0, 1.0),
+                    is_categorical: false,
+                    categories: vec![],
+                    tick_positions: vec![],
+                    datetime: None,
+                    transform: AxisTransform::Linear,
+                },
+                y: Scale {
+                    domain: (0.0, 20.0),
+                    range: (0.0, 20.0),
+                    is_categorical: false,
+                    categories: vec![],
+                    tick_positions: vec![],
+                    datetime: None,
+                    transform: AxisTransform::Linear,
+                },
             }],
         };
 
@@ -753,8 +923,13 @@ mod tests {
                 aesthetics: ResolvedAesthetics {
                     x_col: "x".to_string(),
                     y_col: Some("y".to_string()),
-                    ymin_col: None, ymax_col: None,
-                    color: None, size: None, shape: None, alpha: None, fill: None
+                    ymin_col: None,
+                    ymax_col: None,
+                    color: None,
+                    size: None,
+                    shape: None,
+                    alpha: None,
+                    fill: None,
                 },
             }],
             facet: None,
@@ -764,7 +939,7 @@ mod tests {
             x_scale_spec: None,
             y_scale_spec: None,
         };
-        
+
         (render_data, scales, spec)
     }
 
@@ -773,11 +948,11 @@ mod tests {
         let (data, scales, spec) = make_test_data();
         let options = RenderOptions::default();
         let scene = compile_geometry(data, scales, &spec, &options).unwrap();
-        
+
         assert_eq!(scene.panels.len(), 1);
         let panel = &scene.panels[0];
         assert_eq!(panel.commands.len(), 1);
-        
+
         if let DrawCommand::DrawLine { points, .. } = &panel.commands[0] {
             assert_eq!(points.len(), 2);
             assert_eq!(points[0], (0.0, 10.0));

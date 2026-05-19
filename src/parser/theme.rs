@@ -1,17 +1,11 @@
-use nom::{
-    bytes::complete::tag,
-    character::complete::char,
-    multi::separated_list0,
-    branch::alt,
-    combinator::map,
-    sequence::preceded,
-    IResult,
-};
 use crate::parser::ast::{
-    Theme, LegendPosition, ThemeElement,
-    ElementLine, ElementRect, ElementText,
+    ElementLine, ElementRect, ElementText, LegendPosition, Theme, ThemeElement,
 };
-use crate::parser::lexer::{string_literal, number_literal, ws};
+use crate::parser::lexer::{number_literal, string_literal, ws};
+use nom::{
+    branch::alt, bytes::complete::tag, character::complete::char, combinator::map,
+    multi::separated_list0, sequence::preceded, IResult,
+};
 
 // === Element Parsers ===
 
@@ -23,14 +17,28 @@ fn parse_element_text(input: &str) -> IResult<&str, ThemeElement> {
     let (input, args) = separated_list0(
         ws(char(',')),
         alt((
-            map(preceded(ws(tag("size:")), ws(number_literal)), |v| ("size", ArgValue::Number(v))),
-            map(preceded(ws(tag("color:")), ws(string_literal)), |v| ("color", ArgValue::String(v))),
-            map(preceded(ws(tag("family:")), ws(string_literal)), |v| ("family", ArgValue::String(v))),
-            map(preceded(ws(tag("face:")), ws(string_literal)), |v| ("face", ArgValue::String(v))),
-            map(preceded(ws(tag("angle:")), ws(number_literal)), |v| ("angle", ArgValue::Number(v))),
-            map(preceded(ws(tag("hjust:")), ws(number_literal)), |v| ("hjust", ArgValue::Number(v))),
-            map(preceded(ws(tag("vjust:")), ws(number_literal)), |v| ("vjust", ArgValue::Number(v))),
-        ))
+            map(preceded(ws(tag("size:")), ws(number_literal)), |v| {
+                ("size", ArgValue::Number(v))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |v| {
+                ("color", ArgValue::String(v))
+            }),
+            map(preceded(ws(tag("family:")), ws(string_literal)), |v| {
+                ("family", ArgValue::String(v))
+            }),
+            map(preceded(ws(tag("face:")), ws(string_literal)), |v| {
+                ("face", ArgValue::String(v))
+            }),
+            map(preceded(ws(tag("angle:")), ws(number_literal)), |v| {
+                ("angle", ArgValue::Number(v))
+            }),
+            map(preceded(ws(tag("hjust:")), ws(number_literal)), |v| {
+                ("hjust", ArgValue::Number(v))
+            }),
+            map(preceded(ws(tag("vjust:")), ws(number_literal)), |v| {
+                ("vjust", ArgValue::Number(v))
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -60,10 +68,16 @@ fn parse_element_line(input: &str) -> IResult<&str, ThemeElement> {
     let (input, args) = separated_list0(
         ws(char(',')),
         alt((
-            map(preceded(ws(tag("color:")), ws(string_literal)), |v| ("color", ArgValue::String(v))),
-            map(preceded(ws(tag("width:")), ws(number_literal)), |v| ("width", ArgValue::Number(v))),
-            map(preceded(ws(tag("linetype:")), ws(string_literal)), |v| ("linetype", ArgValue::String(v))),
-        ))
+            map(preceded(ws(tag("color:")), ws(string_literal)), |v| {
+                ("color", ArgValue::String(v))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |v| {
+                ("width", ArgValue::Number(v))
+            }),
+            map(preceded(ws(tag("linetype:")), ws(string_literal)), |v| {
+                ("linetype", ArgValue::String(v))
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -89,10 +103,16 @@ fn parse_element_rect(input: &str) -> IResult<&str, ThemeElement> {
     let (input, args) = separated_list0(
         ws(char(',')),
         alt((
-            map(preceded(ws(tag("fill:")), ws(string_literal)), |v| ("fill", ArgValue::String(v))),
-            map(preceded(ws(tag("color:")), ws(string_literal)), |v| ("color", ArgValue::String(v))),
-            map(preceded(ws(tag("width:")), ws(number_literal)), |v| ("width", ArgValue::Number(v))),
-        ))
+            map(preceded(ws(tag("fill:")), ws(string_literal)), |v| {
+                ("fill", ArgValue::String(v))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |v| {
+                ("color", ArgValue::String(v))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |v| {
+                ("width", ArgValue::Number(v))
+            }),
+        )),
     )(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
@@ -179,21 +199,66 @@ fn parse_legend_position_arg(input: &str) -> IResult<&str, ThemeArg> {
 fn parse_theme_arg(input: &str) -> IResult<&str, ThemeArg> {
     alt((
         parse_legend_position_arg,
-        map(preceded(ws(tag("plot_background:")), ws(parse_theme_element)), ThemeArg::PlotBackground),
-        map(preceded(ws(tag("plot_title:")), ws(parse_theme_element)), ThemeArg::PlotTitle),
-        map(preceded(ws(tag("panel_background:")), ws(parse_theme_element)), ThemeArg::PanelBackground),
-        map(preceded(ws(tag("panel_grid_major:")), ws(parse_theme_element)), ThemeArg::PanelGridMajor),
-        map(preceded(ws(tag("panel_grid_minor:")), ws(parse_theme_element)), ThemeArg::PanelGridMinor),
-        map(preceded(ws(tag("axis_text:")), ws(parse_theme_element)), ThemeArg::AxisText),
-        map(preceded(ws(tag("axis_line:")), ws(parse_theme_element)), ThemeArg::AxisLine),
-        map(preceded(ws(tag("axis_ticks:")), ws(parse_theme_element)), ThemeArg::AxisTicks),
-        map(preceded(ws(tag("legend_background:")), ws(parse_theme_element)), ThemeArg::LegendBackground),
-        map(preceded(ws(tag("legend_text:")), ws(parse_theme_element)), ThemeArg::LegendText),
-        map(preceded(ws(tag("legend_margin:")), ws(number_literal)), ThemeArg::LegendMargin),
-        map(preceded(ws(tag("legend_key_size:")), ws(number_literal)), ThemeArg::LegendKeySize),
-        map(preceded(ws(tag("line:")), ws(parse_theme_element)), ThemeArg::Line),
-        map(preceded(ws(tag("rect:")), ws(parse_theme_element)), ThemeArg::Rect),
-        map(preceded(ws(tag("text:")), ws(parse_theme_element)), ThemeArg::Text),
+        map(
+            preceded(ws(tag("plot_background:")), ws(parse_theme_element)),
+            ThemeArg::PlotBackground,
+        ),
+        map(
+            preceded(ws(tag("plot_title:")), ws(parse_theme_element)),
+            ThemeArg::PlotTitle,
+        ),
+        map(
+            preceded(ws(tag("panel_background:")), ws(parse_theme_element)),
+            ThemeArg::PanelBackground,
+        ),
+        map(
+            preceded(ws(tag("panel_grid_major:")), ws(parse_theme_element)),
+            ThemeArg::PanelGridMajor,
+        ),
+        map(
+            preceded(ws(tag("panel_grid_minor:")), ws(parse_theme_element)),
+            ThemeArg::PanelGridMinor,
+        ),
+        map(
+            preceded(ws(tag("axis_text:")), ws(parse_theme_element)),
+            ThemeArg::AxisText,
+        ),
+        map(
+            preceded(ws(tag("axis_line:")), ws(parse_theme_element)),
+            ThemeArg::AxisLine,
+        ),
+        map(
+            preceded(ws(tag("axis_ticks:")), ws(parse_theme_element)),
+            ThemeArg::AxisTicks,
+        ),
+        map(
+            preceded(ws(tag("legend_background:")), ws(parse_theme_element)),
+            ThemeArg::LegendBackground,
+        ),
+        map(
+            preceded(ws(tag("legend_text:")), ws(parse_theme_element)),
+            ThemeArg::LegendText,
+        ),
+        map(
+            preceded(ws(tag("legend_margin:")), ws(number_literal)),
+            ThemeArg::LegendMargin,
+        ),
+        map(
+            preceded(ws(tag("legend_key_size:")), ws(number_literal)),
+            ThemeArg::LegendKeySize,
+        ),
+        map(
+            preceded(ws(tag("line:")), ws(parse_theme_element)),
+            ThemeArg::Line,
+        ),
+        map(
+            preceded(ws(tag("rect:")), ws(parse_theme_element)),
+            ThemeArg::Rect,
+        ),
+        map(
+            preceded(ws(tag("text:")), ws(parse_theme_element)),
+            ThemeArg::Text,
+        ),
     ))(input)
 }
 
@@ -205,34 +270,37 @@ pub fn parse_theme_minimal(input: &str) -> IResult<&str, Theme> {
     let (input, _) = ws(char('('))(input)?;
     let (input, _) = ws(char(')'))(input)?;
 
-    Ok((input, Theme {
-        line: ThemeElement::Inherit,
-        rect: ThemeElement::Inherit,
-        text: ThemeElement::Inherit,
-        plot_background: ThemeElement::Rect(ElementRect {
-            fill: Some("white".to_string()),
-            ..Default::default()
-        }),
-        plot_title: ThemeElement::Inherit,
-        panel_background: ThemeElement::Rect(ElementRect {
-            fill: Some("white".to_string()),
-            ..Default::default()
-        }),
-        panel_grid_major: ThemeElement::Line(ElementLine {
-            color: Some("#CCCCCC".to_string()),
-            width: Some(0.5),
-            ..Default::default()
-        }),
-        panel_grid_minor: ThemeElement::Blank,
-        axis_text: ThemeElement::Inherit,
-        axis_line: ThemeElement::Blank,
-        axis_ticks: ThemeElement::Blank,
-        legend_position: None,
-        legend_background: ThemeElement::Inherit,
-        legend_text: ThemeElement::Inherit,
-        legend_margin: None,
-        legend_key_size: None,
-    }))
+    Ok((
+        input,
+        Theme {
+            line: ThemeElement::Inherit,
+            rect: ThemeElement::Inherit,
+            text: ThemeElement::Inherit,
+            plot_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            plot_title: ThemeElement::Inherit,
+            panel_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            panel_grid_major: ThemeElement::Line(ElementLine {
+                color: Some("#CCCCCC".to_string()),
+                width: Some(0.5),
+                ..Default::default()
+            }),
+            panel_grid_minor: ThemeElement::Blank,
+            axis_text: ThemeElement::Inherit,
+            axis_line: ThemeElement::Blank,
+            axis_ticks: ThemeElement::Blank,
+            legend_position: None,
+            legend_background: ThemeElement::Inherit,
+            legend_text: ThemeElement::Inherit,
+            legend_margin: None,
+            legend_key_size: None,
+        },
+    ))
 }
 
 /// Parse theme_dark() - dark background with light foreground elements
@@ -241,59 +309,62 @@ pub fn parse_theme_dark(input: &str) -> IResult<&str, Theme> {
     let (input, _) = ws(char('('))(input)?;
     let (input, _) = ws(char(')'))(input)?;
 
-    Ok((input, Theme {
-        line: ThemeElement::Inherit,
-        rect: ThemeElement::Inherit,
-        text: ThemeElement::Text(ElementText {
-            color: Some("#f2f2f2".to_string()),
-            ..Default::default()
-        }),
-        plot_background: ThemeElement::Rect(ElementRect {
-            fill: Some("#1f1f1f".to_string()),
-            ..Default::default()
-        }),
-        plot_title: ThemeElement::Inherit,
-        panel_background: ThemeElement::Rect(ElementRect {
-            fill: Some("#2b2b2b".to_string()),
-            ..Default::default()
-        }),
-        panel_grid_major: ThemeElement::Line(ElementLine {
-            color: Some("#555555".to_string()),
-            width: Some(0.5),
-            ..Default::default()
-        }),
-        panel_grid_minor: ThemeElement::Line(ElementLine {
-            color: Some("#3f3f3f".to_string()),
-            width: Some(0.25),
-            ..Default::default()
-        }),
-        axis_text: ThemeElement::Text(ElementText {
-            color: Some("#d8d8d8".to_string()),
-            ..Default::default()
-        }),
-        axis_line: ThemeElement::Line(ElementLine {
-            color: Some("#d8d8d8".to_string()),
-            width: Some(1.0),
-            ..Default::default()
-        }),
-        axis_ticks: ThemeElement::Line(ElementLine {
-            color: Some("#d8d8d8".to_string()),
-            width: Some(1.0),
-            ..Default::default()
-        }),
-        legend_position: None,
-        legend_background: ThemeElement::Rect(ElementRect {
-            fill: Some("#2b2b2b".to_string()),
-            color: Some("#d8d8d8".to_string()),
-            width: Some(1.0),
-        }),
-        legend_text: ThemeElement::Text(ElementText {
-            color: Some("#f2f2f2".to_string()),
-            ..Default::default()
-        }),
-        legend_margin: None,
-        legend_key_size: None,
-    }))
+    Ok((
+        input,
+        Theme {
+            line: ThemeElement::Inherit,
+            rect: ThemeElement::Inherit,
+            text: ThemeElement::Text(ElementText {
+                color: Some("#f2f2f2".to_string()),
+                ..Default::default()
+            }),
+            plot_background: ThemeElement::Rect(ElementRect {
+                fill: Some("#1f1f1f".to_string()),
+                ..Default::default()
+            }),
+            plot_title: ThemeElement::Inherit,
+            panel_background: ThemeElement::Rect(ElementRect {
+                fill: Some("#2b2b2b".to_string()),
+                ..Default::default()
+            }),
+            panel_grid_major: ThemeElement::Line(ElementLine {
+                color: Some("#555555".to_string()),
+                width: Some(0.5),
+                ..Default::default()
+            }),
+            panel_grid_minor: ThemeElement::Line(ElementLine {
+                color: Some("#3f3f3f".to_string()),
+                width: Some(0.25),
+                ..Default::default()
+            }),
+            axis_text: ThemeElement::Text(ElementText {
+                color: Some("#d8d8d8".to_string()),
+                ..Default::default()
+            }),
+            axis_line: ThemeElement::Line(ElementLine {
+                color: Some("#d8d8d8".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            axis_ticks: ThemeElement::Line(ElementLine {
+                color: Some("#d8d8d8".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            legend_position: None,
+            legend_background: ThemeElement::Rect(ElementRect {
+                fill: Some("#2b2b2b".to_string()),
+                color: Some("#d8d8d8".to_string()),
+                width: Some(1.0),
+            }),
+            legend_text: ThemeElement::Text(ElementText {
+                color: Some("#f2f2f2".to_string()),
+                ..Default::default()
+            }),
+            legend_margin: None,
+            legend_key_size: None,
+        },
+    ))
 }
 
 /// Parse theme_classic() - white background, axis lines, and no grid
@@ -302,42 +373,45 @@ pub fn parse_theme_classic(input: &str) -> IResult<&str, Theme> {
     let (input, _) = ws(char('('))(input)?;
     let (input, _) = ws(char(')'))(input)?;
 
-    Ok((input, Theme {
-        line: ThemeElement::Inherit,
-        rect: ThemeElement::Inherit,
-        text: ThemeElement::Inherit,
-        plot_background: ThemeElement::Rect(ElementRect {
-            fill: Some("white".to_string()),
-            ..Default::default()
-        }),
-        plot_title: ThemeElement::Inherit,
-        panel_background: ThemeElement::Rect(ElementRect {
-            fill: Some("white".to_string()),
-            ..Default::default()
-        }),
-        panel_grid_major: ThemeElement::Blank,
-        panel_grid_minor: ThemeElement::Blank,
-        axis_text: ThemeElement::Inherit,
-        axis_line: ThemeElement::Line(ElementLine {
-            color: Some("black".to_string()),
-            width: Some(1.0),
-            ..Default::default()
-        }),
-        axis_ticks: ThemeElement::Line(ElementLine {
-            color: Some("black".to_string()),
-            width: Some(1.0),
-            ..Default::default()
-        }),
-        legend_position: None,
-        legend_background: ThemeElement::Rect(ElementRect {
-            fill: Some("white".to_string()),
-            color: Some("black".to_string()),
-            width: Some(1.0),
-        }),
-        legend_text: ThemeElement::Inherit,
-        legend_margin: None,
-        legend_key_size: None,
-    }))
+    Ok((
+        input,
+        Theme {
+            line: ThemeElement::Inherit,
+            rect: ThemeElement::Inherit,
+            text: ThemeElement::Inherit,
+            plot_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            plot_title: ThemeElement::Inherit,
+            panel_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            panel_grid_major: ThemeElement::Blank,
+            panel_grid_minor: ThemeElement::Blank,
+            axis_text: ThemeElement::Inherit,
+            axis_line: ThemeElement::Line(ElementLine {
+                color: Some("black".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            axis_ticks: ThemeElement::Line(ElementLine {
+                color: Some("black".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            legend_position: None,
+            legend_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                color: Some("black".to_string()),
+                width: Some(1.0),
+            }),
+            legend_text: ThemeElement::Inherit,
+            legend_margin: None,
+            legend_key_size: None,
+        },
+    ))
 }
 
 /// Parse theme(...) with hierarchical element arguments
@@ -345,10 +419,7 @@ pub fn parse_theme(input: &str) -> IResult<&str, Theme> {
     let (input, _) = ws(tag("theme"))(input)?;
     let (input, _) = ws(char('('))(input)?;
 
-    let (input, args) = separated_list0(
-        ws(char(',')),
-        parse_theme_arg
-    )(input)?;
+    let (input, args) = separated_list0(ws(char(',')), parse_theme_arg)(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
 
@@ -379,7 +450,12 @@ pub fn parse_theme(input: &str) -> IResult<&str, Theme> {
 
 /// Parse any theme command (theme_minimal or theme)
 pub fn parse_theme_command(input: &str) -> IResult<&str, Theme> {
-    alt((parse_theme_minimal, parse_theme_dark, parse_theme_classic, parse_theme))(input)
+    alt((
+        parse_theme_minimal,
+        parse_theme_dark,
+        parse_theme_classic,
+        parse_theme,
+    ))(input)
 }
 
 #[cfg(test)]
@@ -443,7 +519,9 @@ mod tests {
 
     #[test]
     fn test_parse_theme_with_elements() {
-        let result = parse_theme("theme(plot_title: element_text(size: 24), panel_grid_minor: element_blank())");
+        let result = parse_theme(
+            "theme(plot_title: element_text(size: 24), panel_grid_minor: element_blank())",
+        );
         assert!(result.is_ok());
         let (_, theme) = result.unwrap();
         if let ThemeElement::Text(t) = &theme.plot_title {
@@ -464,7 +542,9 @@ mod tests {
 
     #[test]
     fn test_parse_theme_legend_config() {
-        let result = parse_theme(r##"theme(legend_text: element_text(size: 14, color: "#333333"), legend_background: element_rect(fill: "white", color: "black"), legend_margin: 6, legend_key_size: 18)"##);
+        let result = parse_theme(
+            r##"theme(legend_text: element_text(size: 14, color: "#333333"), legend_background: element_rect(fill: "white", color: "black"), legend_margin: 6, legend_key_size: 18)"##,
+        );
         assert!(result.is_ok());
         let (_, theme) = result.unwrap();
 

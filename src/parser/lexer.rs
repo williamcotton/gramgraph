@@ -1,5 +1,5 @@
 use nom::{
-    bytes::complete::{take_while1},
+    bytes::complete::take_while1,
     character::complete::{char, multispace0},
     combinator::recognize,
     number::complete::double,
@@ -18,9 +18,11 @@ pub fn identifier(input: &str) -> IResult<&str, String> {
     let (input, ident) = recognize(take_while1(|c: char| c.is_alphanumeric() || c == '_'))(input)?;
 
     if let Some(first) = ident.chars().next() {
-        if !first.is_alphabetic() && first != '_'
- {
-            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Alpha)));
+        if !first.is_alphabetic() && first != '_' {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Alpha,
+            )));
         }
     }
 
@@ -28,11 +30,7 @@ pub fn identifier(input: &str) -> IResult<&str, String> {
 }
 
 pub fn string_literal(input: &str) -> IResult<&str, String> {
-    let (input, content) = delimited(
-        char('\"'),
-        take_while1(|c| c != '\"'),
-        char('\"'),
-    )(input)?;
+    let (input, content) = delimited(char('\"'), take_while1(|c| c != '\"'), char('\"'))(input)?;
 
     Ok((input, content.to_string()))
 }
@@ -51,7 +49,10 @@ mod tests {
         assert_eq!(identifier("foo"), Ok(("", "foo".to_string())));
         assert_eq!(identifier("foo123"), Ok(("", "foo123".to_string())));
         assert_eq!(identifier("_bar"), Ok(("", "_bar".to_string())));
-        assert_eq!(identifier("foo_bar_123"), Ok(("", "foo_bar_123".to_string())));
+        assert_eq!(
+            identifier("foo_bar_123"),
+            Ok(("", "foo_bar_123".to_string()))
+        );
     }
 
     #[test]

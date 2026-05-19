@@ -2,12 +2,7 @@
 
 use super::ast::{Facet, FacetScales};
 use super::lexer::{identifier, ws};
-use nom::{
-    bytes::complete::tag,
-    character::complete::char,
-    multi::separated_list0,
-    IResult,
-};
+use nom::{bytes::complete::tag, character::complete::char, multi::separated_list0, IResult};
 
 /// Parse facet_wrap specification
 /// Format: facet_wrap(by: column_name, ncol: 2, scales: "free_x")
@@ -20,10 +15,7 @@ pub fn parse_facet_wrap(input: &str) -> IResult<&str, Facet> {
     let (input, _) = ws(char('('))(input)?;
 
     // Parse named arguments
-    let (input, args) = separated_list0(
-        ws(char(',')),
-        parse_facet_argument
-    )(input)?;
+    let (input, args) = separated_list0(ws(char(',')), parse_facet_argument)(input)?;
 
     let (input, _) = ws(char(')'))(input)?;
 
@@ -43,10 +35,7 @@ pub fn parse_facet_wrap(input: &str) -> IResult<&str, Facet> {
 
     // Validate: "by" is required
     let by = by.ok_or_else(|| {
-        nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        ))
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
     })?;
 
     Ok((input, Facet { by, ncol, scales }))

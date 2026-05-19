@@ -38,6 +38,14 @@ cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gend
 
 ![Scatter Plot](examples/scatter.svg)
 
+### Shape and Alpha Mapping
+
+```bash
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, shape: gender, alpha: gender) | point(size: 7, color: "steelblue") | labs(title: "Shape and Alpha Mapping", x: "Height (cm)", y: "Weight (kg)") | theme_minimal()' --format svg > examples/shape_alpha.svg
+```
+
+![Shape and Alpha Mapping](examples/shape_alpha.svg)
+
 ### Dodged Bar Chart
 
 ```bash
@@ -175,6 +183,22 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 ```
 
 ![Reverse Scale](examples/scale_reverse.svg)
+
+### Log10 Scale
+
+```bash
+cat examples/scales.csv | gramgraph 'aes(x: x, y: value) | line(color: "steelblue", width: 2) | point(shape: "triangle", size: 6, color: "steelblue") | labs(title: "Log10 X Scale", x: "Input", y: "Value") | theme_minimal() | scale_x_log10()' --format svg > examples/scale_log10.svg
+```
+
+![Log10 Scale](examples/scale_log10.svg)
+
+### Square Root Scale
+
+```bash
+cat examples/scales.csv | gramgraph 'aes(x: x, y: value) | line(color: "purple", width: 2) | point(shape: "diamond", size: 6, color: "purple") | labs(title: "Square Root X Scale", x: "Input", y: "Value") | theme_minimal() | scale_x_sqrt()' --format svg > examples/scale_sqrt.svg
+```
+
+![Square Root Scale](examples/scale_sqrt.svg)
 
 ### Custom Theme with Element Functions
 
