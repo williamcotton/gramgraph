@@ -380,6 +380,14 @@ This separation follows `ggplot2`'s architecture where the Grid graphics system 
    - Note any limitations or platform-specific behavior
    - Update relevant code examples
 
+4. **Update `AGENTS.md`**
+   - Add the feature to the "✅ Implemented" list
+   - Document any new DSL syntax in the appropriate section
+   - Note any limitations or platform-specific behavior
+   - Update relevant code examples
+
+Note: CLAUDE.md and AGENTS.md should alwayshave the same content.
+
 ### Example Workflow
 
 ```bash
