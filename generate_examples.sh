@@ -67,6 +67,18 @@ cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series
 echo "Generating reference_lines.svg..."
 cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line() | hline(yintercept: 12, color: "red", width: 2, alpha: 0.8, label: "Target y = 12") | vline(xintercept: 3, color: "gray40", width: 2, label: "Time marker x = 3") | labs(title: "Reference Lines", x: "Time", y: "Value") | theme_minimal() | theme(legend_position: "bottom")' --format svg > examples/reference_lines.svg
 
+# Diagonal Reference Line and Segment
+echo "Generating abline_segment.svg..."
+cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: gender) | point(alpha: 0.55, size: 5) | abline(slope: 1, intercept: -100, color: "gray30", width: 2, label: "Reference trend") | segment(x: 160, y: 55, xend: 185, yend: 85, color: "red", width: 2, label: "Manual segment") | labs(title: "Abline and Segment", x: "Height (cm)", y: "Weight (kg)") | theme_minimal() | theme(legend_position: "bottom")' --format svg > examples/abline_segment.svg
+
+# Line Range
+echo "Generating linerange.svg..."
+cat examples/intervals.csv | cargo run -- 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | linerange(width: 2, alpha: 0.75) | point(size: 4) | labs(title: "Line Range Intervals", x: "Time", y: "Estimate") | theme_minimal()' --format svg > examples/linerange.svg
+
+# Error Bars
+echo "Generating errorbar.svg..."
+cat examples/intervals.csv | cargo run -- 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | errorbar(width: 0.18, linewidth: 1.5, alpha: 0.75) | point(size: 4) | labs(title: "Error Bars", x: "Time", y: "Estimate") | theme_minimal()' --format svg > examples/errorbar.svg
+
 # Smoothing (Linear Regression)
 echo "Generating smooth.svg..."
 cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight) | point(alpha: 0.5) | smooth() | labs(title: "Height vs Weight", subtitle: "Linear Regression Fit") | theme_minimal()' --format svg > examples/smooth.svg
@@ -124,6 +136,10 @@ cat examples/demographics.csv | cargo run -- 'aes(x: height, y: weight, color: g
 # Classic Theme Example
 echo "Generating theme_classic.svg..."
 cat examples/financials.csv | cargo run -- 'aes(x: quarter, y: amount, color: type) | bar(position: "dodge") | labs(title: "Classic Theme Example") | theme_minimal() | theme_classic()' --format svg > examples/theme_classic.svg
+
+# Light Theme Example
+echo "Generating theme_light.svg..."
+cat examples/timeseries.csv | cargo run -- 'aes(x: time, y: value, color: series) | line(width: 2) | point(size: 4) | labs(title: "Light Theme Example") | theme_minimal() | theme_light()' --format svg > examples/theme_light.svg
 
 # Void Theme Example
 echo "Generating theme_void.svg..."

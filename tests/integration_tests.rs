@@ -222,6 +222,49 @@ fn test_end_to_end_theme_void() {
 }
 
 #[test]
+fn test_end_to_end_linerange_and_errorbar() {
+    let csv = "\
+x,estimate,lower,upper,series
+1,10,8,12,A
+2,14,11,17,A
+1,7,6,9,B
+2,9,7,11,B
+";
+    let result = run_gramgraph_svg(
+        r#"aes(x: x, y: estimate, ymin: lower, ymax: upper, color: series) | linerange(width: 2) | errorbar(width: 0.15, linewidth: 1) | point(size: 4) | theme_minimal()"#,
+        csv,
+    );
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(svg.contains("\nA\n") && svg.contains("\nB\n"));
+    assert!(
+        svg.contains("polyline"),
+        "intervals should render lines: {}",
+        svg
+    );
+}
+
+#[test]
+fn test_end_to_end_abline_segment_and_theme_light() {
+    let csv = "x,y\n1,1\n2,3\n3,4\n";
+    let result = run_gramgraph_svg(
+        r#"aes(x: x, y: y) | point() | abline(slope: 1, intercept: 0, color: "red", label: "Identity") | segment(x: 1, y: 4, xend: 3, yend: 2, color: "gray40", label: "Manual segment") | theme_minimal() | theme_light() | theme(legend_position: "bottom")"#,
+        csv,
+    );
+
+    assert!(result.is_ok(), "Failed: {:?}", result.err());
+    let svg = result.unwrap();
+    assert!(svg.contains("Identity"));
+    assert!(svg.contains("Manual segment"));
+    assert!(
+        !svg.contains("default"),
+        "labeled fixed layers should not expose synthetic keys: {}",
+        svg
+    );
+}
+
+#[test]
 fn test_end_to_end_bar_chart() {
     let csv = fs::read_to_string("fixtures/bar_chart.csv").expect("Failed to read test CSV");
     let result = run_gramgraph("aes(x: category, y: value1) | bar()", &csv);

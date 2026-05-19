@@ -254,8 +254,14 @@ fn reference_line_label(layer: &Layer) -> Option<&str> {
     match layer {
         Layer::HLine(hline) => hline.label.as_deref(),
         Layer::VLine(vline) => vline.label.as_deref(),
+        Layer::AbLine(abline) => abline.label.as_deref(),
+        Layer::Segment(segment) => segment.label.as_deref(),
         _ => None,
     }
+}
+
+fn x_occupancy_key(x: f64) -> i64 {
+    (x * 1_000_000.0).round() as i64
 }
 
 fn hline_points(y: f64, scales: &PanelScales, is_flipped: bool) -> Result<Vec<(f64, f64)>> {
@@ -274,6 +280,25 @@ fn vline_points(x: f64, scales: &PanelScales, is_flipped: bool) -> Result<Vec<(f
     } else {
         vec![(x, scales.y.range.0), (x, scales.y.range.1)]
     })
+}
+
+fn abline_points(
+    slope: f64,
+    intercept: f64,
+    scales: &PanelScales,
+    is_flipped: bool,
+) -> Result<Vec<(f64, f64)>> {
+    let x_min_transformed = scales.x.range.0.min(scales.x.range.1);
+    let x_max_transformed = scales.x.range.0.max(scales.x.range.1);
+    let x0 = scales.x.transform.invert(x_min_transformed);
+    let x1 = scales.x.transform.invert(x_max_transformed);
+    let y0 = slope * x0 + intercept;
+    let y1 = slope * x1 + intercept;
+
+    Ok(vec![
+        transform_data_point(x0, y0, scales, is_flipped)?,
+        transform_data_point(x1, y1, scales, is_flipped)?,
+    ])
 }
 
 /// Compile data and scales into a SceneGraph of drawing commands
@@ -320,7 +345,7 @@ pub fn compile_geometry(
                     for &x in &group.x {
                         // Quantize X to integer for categorical grouping logic
                         // (Use round() to handle float imprecision)
-                        let key = x.round() as i64;
+                        let key = x_occupancy_key(x);
                         x_occupancy.entry(key).or_default().push(g_idx);
                     }
                 }
@@ -337,6 +362,12 @@ pub fn compile_geometry(
                         let points = match &layer_spec.original_layer {
                             Layer::HLine(_) => hline_points(group.y[0], &panel_scales, is_flipped)?,
                             Layer::VLine(_) => vline_points(group.x[0], &panel_scales, is_flipped)?,
+                            Layer::AbLine(abline) => abline_points(
+                                abline.slope,
+                                abline.intercept,
+                                &panel_scales,
+                                is_flipped,
+                            )?,
                             _ => {
                                 let raw_points: Vec<(f64, f64)> = group
                                     .x
@@ -358,7 +389,10 @@ pub fn compile_geometry(
                         };
                         let legend = if matches!(
                             &layer_spec.original_layer,
-                            Layer::HLine(_) | Layer::VLine(_)
+                            Layer::HLine(_)
+                                | Layer::VLine(_)
+                                | Layer::AbLine(_)
+                                | Layer::Segment(_)
                         ) {
                             reference_line_label(&layer_spec.original_layer)
                                 .filter(|label| emitted_legend_keys.insert((*label).to_string()))
@@ -373,6 +407,94 @@ pub fn compile_geometry(
                             style: style.clone(),
                             legend,
                         });
+                    }
+                    RenderStyle::LineRange(style) => {
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let points = vec![
+                                transform_data_point(x, group.y_min[i], &panel_scales, is_flipped)?,
+                                transform_data_point(x, group.y_max[i], &panel_scales, is_flipped)?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points,
+                                style: style.clone(),
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
+                            });
+                        }
+                    }
+                    RenderStyle::ErrorBar { style, width } => {
+                        let cap_width = *width;
+                        let half_cap = cap_width / 2.0;
+
+                        for i in 0..group.x.len() {
+                            let x = group.x[i];
+                            let y_min = group.y_min[i];
+                            let y_max = group.y_max[i];
+
+                            let vertical = vec![
+                                transform_data_point(x, y_min, &panel_scales, is_flipped)?,
+                                transform_data_point(x, y_max, &panel_scales, is_flipped)?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points: vertical,
+                                style: style.clone(),
+                                legend: if i == 0
+                                    && has_grouping
+                                    && emitted_legend_keys.insert(group.key.clone())
+                                {
+                                    Some(group.key.clone())
+                                } else {
+                                    None
+                                },
+                            });
+
+                            let lower_cap = vec![
+                                transform_data_point(
+                                    x - half_cap,
+                                    y_min,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                                transform_data_point(
+                                    x + half_cap,
+                                    y_min,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points: lower_cap,
+                                style: style.clone(),
+                                legend: None,
+                            });
+
+                            let upper_cap = vec![
+                                transform_data_point(
+                                    x - half_cap,
+                                    y_max,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                                transform_data_point(
+                                    x + half_cap,
+                                    y_max,
+                                    &panel_scales,
+                                    is_flipped,
+                                )?,
+                            ];
+                            commands.push(DrawCommand::DrawLine {
+                                points: upper_cap,
+                                style: style.clone(),
+                                legend: None,
+                            });
+                        }
                     }
                     RenderStyle::Point(style) => {
                         let points: Vec<(f64, f64)> = group
@@ -402,7 +524,7 @@ pub fn compile_geometry(
 
                             // Calculate Dodge Offset for this specific point
                             let (slot_width, x_offset) = if matches!(position, BarPosition::Dodge) {
-                                let key = x_center.round() as i64;
+                                let key = x_occupancy_key(x_center);
                                 if let Some(occupants) = x_occupancy.get(&key) {
                                     let num_at_x = occupants.len();
                                     if let Some(rank) =
@@ -456,7 +578,7 @@ pub fn compile_geometry(
 
                             // Calculate Dodge Offset for this specific point
                             let (slot_width, x_offset) = if matches!(position, BarPosition::Dodge) {
-                                let key = x_center.round() as i64;
+                                let key = x_occupancy_key(x_center);
                                 if let Some(occupants) = x_occupancy.get(&key) {
                                     let num_at_x = occupants.len();
                                     if let Some(rank) =
@@ -754,7 +876,7 @@ pub fn compile_geometry(
 
                             // Calculate Dodge Offset (same as boxplot)
                             let (slot_width, x_offset) = if matches!(position, BarPosition::Dodge) {
-                                let key = x_center.round() as i64;
+                                let key = x_occupancy_key(x_center);
                                 if let Some(occupants) = x_occupancy.get(&key) {
                                     let num_at_x = occupants.len();
                                     if let Some(rank) =

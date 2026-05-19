@@ -59,12 +59,14 @@ fn resolve_layer_aesthetics(
         Layer::Point(p) => extract_mapped_string(&p.color),
         Layer::Bar(b) => extract_mapped_string(&b.color),
         Layer::Area(a) => extract_mapped_string(&a.color),
+        Layer::LineRange(l) => extract_mapped_string(&l.color),
+        Layer::ErrorBar(e) => extract_mapped_string(&e.color),
         Layer::Ribbon(r) => extract_mapped_string(&r.color),
         Layer::Boxplot(b) => extract_mapped_string(&b.color),
         Layer::Violin(v) => extract_mapped_string(&v.color),
         Layer::Density(d) => extract_mapped_string(&d.color),
         Layer::Heatmap(_) => None,
-        Layer::HLine(_) | Layer::VLine(_) => None,
+        Layer::HLine(_) | Layer::VLine(_) | Layer::AbLine(_) | Layer::Segment(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.color.clone()));
 
@@ -74,12 +76,14 @@ fn resolve_layer_aesthetics(
         Layer::Point(p) => extract_mapped_string_from_f64(&p.size),
         Layer::Bar(b) => extract_mapped_string_from_f64(&b.width),
         Layer::Area(_) => None,
+        Layer::LineRange(l) => extract_mapped_string_from_f64(&l.width),
+        Layer::ErrorBar(e) => extract_mapped_string_from_f64(&e.line_width),
         Layer::Ribbon(_) => None,
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.width),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.width),
         Layer::Density(_) => None,
         Layer::Heatmap(_) => None,
-        Layer::HLine(_) | Layer::VLine(_) => None,
+        Layer::HLine(_) | Layer::VLine(_) | Layer::AbLine(_) | Layer::Segment(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.size.clone()));
 
@@ -89,13 +93,17 @@ fn resolve_layer_aesthetics(
         Layer::Line(_)
         | Layer::Bar(_)
         | Layer::Area(_)
+        | Layer::LineRange(_)
+        | Layer::ErrorBar(_)
         | Layer::Ribbon(_)
         | Layer::Boxplot(_)
         | Layer::Violin(_)
         | Layer::Density(_)
         | Layer::Heatmap(_)
         | Layer::HLine(_)
-        | Layer::VLine(_) => None,
+        | Layer::VLine(_)
+        | Layer::AbLine(_)
+        | Layer::Segment(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.shape.clone()));
 
@@ -105,27 +113,41 @@ fn resolve_layer_aesthetics(
         Layer::Point(p) => extract_mapped_string_from_f64(&p.alpha),
         Layer::Bar(b) => extract_mapped_string_from_f64(&b.alpha),
         Layer::Area(a) => extract_mapped_string_from_f64(&a.alpha),
+        Layer::LineRange(l) => extract_mapped_string_from_f64(&l.alpha),
+        Layer::ErrorBar(e) => extract_mapped_string_from_f64(&e.alpha),
         Layer::Ribbon(r) => extract_mapped_string_from_f64(&r.alpha),
         Layer::Boxplot(b) => extract_mapped_string_from_f64(&b.alpha),
         Layer::Violin(v) => extract_mapped_string_from_f64(&v.alpha),
         Layer::Density(d) => extract_mapped_string_from_f64(&d.alpha),
         Layer::Heatmap(h) => extract_mapped_string_from_f64(&h.alpha),
-        Layer::HLine(_) | Layer::VLine(_) => None,
+        Layer::HLine(_) | Layer::VLine(_) | Layer::AbLine(_) | Layer::Segment(_) => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.alpha.clone()));
 
     // Resolve ymin/ymax
     let ymin_col = match layer {
         Layer::Ribbon(r) => r.ymin.clone(),
+        Layer::LineRange(l) => l.ymin.clone(),
+        Layer::ErrorBar(e) => e.ymin.clone(),
         _ => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.ymin.clone()));
 
     let ymax_col = match layer {
         Layer::Ribbon(r) => r.ymax.clone(),
+        Layer::LineRange(l) => l.ymax.clone(),
+        Layer::ErrorBar(e) => e.ymax.clone(),
         _ => None,
     }
     .or_else(|| global_aes.as_ref().and_then(|a| a.ymax.clone()));
+
+    if matches!(layer, Layer::LineRange(_) | Layer::ErrorBar(_))
+        && (ymin_col.is_none() || ymax_col.is_none())
+    {
+        anyhow::bail!(
+            "linerange() and errorbar() require ymin and ymax aesthetics (use aes(ymin: ..., ymax: ...) or layer-level ymin:/ymax:)"
+        );
+    }
 
     // Resolve fill column (heatmap value)
     let fill = match layer {
@@ -157,12 +179,16 @@ fn resolve_positional(
         Layer::Point(p) => (p.x.as_ref(), p.y.as_ref()),
         Layer::Bar(b) => (b.x.as_ref(), b.y.as_ref()),
         Layer::Area(a) => (a.x.as_ref(), a.y.as_ref()),
+        Layer::LineRange(l) => (l.x.as_ref(), None),
+        Layer::ErrorBar(e) => (e.x.as_ref(), None),
         Layer::Ribbon(r) => (r.x.as_ref(), None), // Ribbon uses ymin/ymax primarily
         Layer::Boxplot(b) => (b.x.as_ref(), b.y.as_ref()),
         Layer::Violin(v) => (v.x.as_ref(), v.y.as_ref()),
         Layer::Density(d) => (d.x.as_ref(), None), // Density only needs x
         Layer::Heatmap(h) => (h.x.as_ref(), h.y.as_ref()),
-        Layer::HLine(_) | Layer::VLine(_) => return Ok(("".to_string(), None)),
+        Layer::HLine(_) | Layer::VLine(_) | Layer::AbLine(_) | Layer::Segment(_) => {
+            return Ok(("".to_string(), None));
+        }
     };
 
     // Get x column
@@ -198,10 +224,13 @@ fn resolve_positional(
             Layer::Ribbon(_) => {
                 // Allowed (uses ymin/ymax)
             }
+            Layer::LineRange(_) | Layer::ErrorBar(_) => {
+                // Allowed (uses ymin/ymax)
+            }
             Layer::Density(_) => {
                 // Allowed (density computes y from x via KDE)
             }
-            Layer::HLine(_) | Layer::VLine(_) => {
+            Layer::HLine(_) | Layer::VLine(_) | Layer::AbLine(_) | Layer::Segment(_) => {
                 // Allowed (reference line intercepts are fixed values)
             }
             _ => {

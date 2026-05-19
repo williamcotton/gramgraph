@@ -134,6 +134,30 @@ cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) |
 
 ![Reference Lines](examples/reference_lines.svg)
 
+### Abline and Segment
+
+```bash
+cat examples/demographics.csv | gramgraph 'aes(x: height, y: weight, color: gender) | point(alpha: 0.55, size: 5) | abline(slope: 1, intercept: -100, color: "gray30", width: 2, label: "Reference trend") | segment(x: 160, y: 55, xend: 185, yend: 85, color: "red", width: 2, label: "Manual segment") | labs(title: "Abline and Segment", x: "Height (cm)", y: "Weight (kg)") | theme_minimal() | theme(legend_position: "bottom")' --format svg > examples/abline_segment.svg
+```
+
+![Abline and Segment](examples/abline_segment.svg)
+
+### Line Range
+
+```bash
+cat examples/intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | linerange(width: 2, alpha: 0.75) | point(size: 4) | labs(title: "Line Range Intervals", x: "Time", y: "Estimate") | theme_minimal()' --format svg > examples/linerange.svg
+```
+
+![Line Range](examples/linerange.svg)
+
+### Error Bars
+
+```bash
+cat examples/intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | errorbar(width: 0.18, linewidth: 1.5, alpha: 0.75) | point(size: 4) | labs(title: "Error Bars", x: "Time", y: "Estimate") | theme_minimal()' --format svg > examples/errorbar.svg
+```
+
+![Error Bars](examples/errorbar.svg)
+
 ### Smoothing (Linear Regression)
 
 ```bash
@@ -247,6 +271,14 @@ cat examples/financials.csv | gramgraph 'aes(x: quarter, y: amount, color: type)
 ```
 
 ![Classic Theme](examples/theme_classic.svg)
+
+### Light Theme Example
+
+```bash
+cat examples/timeseries.csv | gramgraph 'aes(x: time, y: value, color: series) | line(width: 2) | point(size: 4) | labs(title: "Light Theme Example") | theme_minimal() | theme_light()' --format svg > examples/theme_light.svg
+```
+
+![Light Theme](examples/theme_light.svg)
 
 ### Void Theme Example
 

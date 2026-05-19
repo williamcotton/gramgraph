@@ -249,6 +249,8 @@ pub enum Layer {
     Point(PointLayer),
     Bar(BarLayer),
     Area(AreaLayer),
+    LineRange(LineRangeLayer),
+    ErrorBar(ErrorBarLayer),
     Ribbon(RibbonLayer),
     Boxplot(BoxplotLayer),
     Violin(ViolinLayer),
@@ -256,6 +258,8 @@ pub enum Layer {
     Heatmap(HeatmapLayer),
     HLine(HLineLayer),
     VLine(VLineLayer),
+    AbLine(AbLineLayer),
+    Segment(SegmentLayer),
 }
 
 impl Layer {
@@ -270,6 +274,8 @@ impl Layer {
             Layer::Point(p) => &p.stat,
             Layer::Bar(b) => &b.stat,
             Layer::Area(a) => &a.stat,
+            Layer::LineRange(l) => &l.stat,
+            Layer::ErrorBar(e) => &e.stat,
             Layer::Ribbon(r) => &r.stat,
             Layer::Boxplot(b) => &b.stat,
             Layer::Violin(v) => &v.stat,
@@ -277,6 +283,8 @@ impl Layer {
             Layer::Heatmap(h) => &h.stat,
             Layer::HLine(h) => &h.stat,
             Layer::VLine(v) => &v.stat,
+            Layer::AbLine(a) => &a.stat,
+            Layer::Segment(s) => &s.stat,
         }
     }
 }
@@ -370,6 +378,54 @@ impl Default for AreaLayer {
     }
 }
 
+/// Vertical interval layer from ymin to ymax at each x.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LineRangeLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub ymin: Option<String>,
+    pub ymax: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    pub width: Option<AestheticValue<f64>>,
+    pub alpha: Option<AestheticValue<f64>>,
+}
+
+/// Error-bar interval layer from ymin to ymax at each x, with horizontal caps.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ErrorBarLayer {
+    pub stat: Stat,
+    // Aesthetic overrides
+    pub x: Option<String>,
+    pub ymin: Option<String>,
+    pub ymax: Option<String>,
+
+    // Visual properties
+    pub color: Option<AestheticValue<String>>,
+    /// Stroke width for the vertical line and caps.
+    pub line_width: Option<AestheticValue<f64>>,
+    pub alpha: Option<AestheticValue<f64>>,
+    /// Cap width in data units.
+    pub width: f64,
+}
+
+impl Default for ErrorBarLayer {
+    fn default() -> Self {
+        ErrorBarLayer {
+            stat: Stat::Identity,
+            x: None,
+            ymin: None,
+            ymax: None,
+            color: None,
+            line_width: None,
+            alpha: None,
+            width: 0.2,
+        }
+    }
+}
+
 /// Horizontal reference line layer
 #[derive(Debug, Clone, PartialEq)]
 pub struct HLineLayer {
@@ -410,6 +466,62 @@ impl Default for VLineLayer {
         VLineLayer {
             stat: Stat::Identity,
             xintercept: 0.0,
+            color: None,
+            width: None,
+            alpha: None,
+            label: None,
+        }
+    }
+}
+
+/// Diagonal reference line layer, y = slope * x + intercept.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AbLineLayer {
+    pub stat: Stat,
+    pub slope: f64,
+    pub intercept: f64,
+    pub color: Option<String>,
+    pub width: Option<f64>,
+    pub alpha: Option<f64>,
+    pub label: Option<String>,
+}
+
+impl Default for AbLineLayer {
+    fn default() -> Self {
+        AbLineLayer {
+            stat: Stat::Identity,
+            slope: 1.0,
+            intercept: 0.0,
+            color: None,
+            width: None,
+            alpha: None,
+            label: None,
+        }
+    }
+}
+
+/// Fixed segment layer from (x, y) to (xend, yend).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SegmentLayer {
+    pub stat: Stat,
+    pub x: f64,
+    pub y: f64,
+    pub xend: f64,
+    pub yend: f64,
+    pub color: Option<String>,
+    pub width: Option<f64>,
+    pub alpha: Option<f64>,
+    pub label: Option<String>,
+}
+
+impl Default for SegmentLayer {
+    fn default() -> Self {
+        SegmentLayer {
+            stat: Stat::Identity,
+            x: 0.0,
+            y: 0.0,
+            xend: 1.0,
+            yend: 1.0,
             color: None,
             width: None,
             alpha: None,

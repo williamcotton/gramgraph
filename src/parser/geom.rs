@@ -1,9 +1,9 @@
 // Geometry (geom) parser for Grammar of Graphics DSL
 
 use super::ast::{
-    AestheticValue, AreaLayer, BarLayer, BarPosition, BoxplotLayer, DensityLayer, HLineLayer,
-    HeatmapLayer, Layer, LineInterpolation, LineLayer, PointLayer, RibbonLayer, VLineLayer,
-    ViolinLayer,
+    AbLineLayer, AestheticValue, AreaLayer, BarLayer, BarPosition, BoxplotLayer, DensityLayer,
+    ErrorBarLayer, HLineLayer, HeatmapLayer, Layer, LineInterpolation, LineLayer, LineRangeLayer,
+    PointLayer, RibbonLayer, SegmentLayer, VLineLayer, ViolinLayer,
 };
 use super::lexer::{identifier, number_literal, string_literal, ws};
 use nom::{
@@ -219,6 +219,132 @@ pub fn parse_area(input: &str) -> IResult<&str, Layer> {
     Ok((input, Layer::Area(layer)))
 }
 
+/// Parse a line range geometry (vertical interval from ymin to ymax at x).
+pub fn parse_linerange(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("linerange"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("ymin:")), ws(identifier)), |ymin| {
+                ("ymin", ArgValue::ColumnName(ymin))
+            }),
+            map(preceded(ws(tag("ymax:")), ws(identifier)), |ymax| {
+                ("ymax", ArgValue::ColumnName(ymax))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(identifier)), |w| {
+                ("width", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = LineRangeLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("ymin", ArgValue::ColumnName(ymin)) => layer.ymin = Some(ymin),
+            ("ymax", ArgValue::ColumnName(ymax)) => layer.ymax = Some(ymax),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(AestheticValue::Fixed(w)),
+            ("width", ArgValue::NumericMapped(w)) => layer.width = Some(AestheticValue::Mapped(w)),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::LineRange(layer)))
+}
+
+/// Parse an error bar geometry (vertical interval with caps).
+pub fn parse_errorbar(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("errorbar"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("x:")), ws(identifier)), |x| {
+                ("x", ArgValue::ColumnName(x))
+            }),
+            map(preceded(ws(tag("ymin:")), ws(identifier)), |ymin| {
+                ("ymin", ArgValue::ColumnName(ymin))
+            }),
+            map(preceded(ws(tag("ymax:")), ws(identifier)), |ymax| {
+                ("ymax", ArgValue::ColumnName(ymax))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("color:")), ws(identifier)), |c| {
+                ("color", ArgValue::ColorMapped(c))
+            }),
+            map(preceded(ws(tag("linewidth:")), ws(number_literal)), |w| {
+                ("linewidth", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("linewidth:")), ws(identifier)), |w| {
+                ("linewidth", ArgValue::NumericMapped(w))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(identifier)), |a| {
+                ("alpha", ArgValue::NumericMapped(a))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = ErrorBarLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::ColumnName(x)) => layer.x = Some(x),
+            ("ymin", ArgValue::ColumnName(ymin)) => layer.ymin = Some(ymin),
+            ("ymax", ArgValue::ColumnName(ymax)) => layer.ymax = Some(ymax),
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(AestheticValue::Fixed(c)),
+            ("color", ArgValue::ColorMapped(c)) => layer.color = Some(AestheticValue::Mapped(c)),
+            ("linewidth", ArgValue::NumericFixed(w)) => {
+                layer.line_width = Some(AestheticValue::Fixed(w))
+            }
+            ("linewidth", ArgValue::NumericMapped(w)) => {
+                layer.line_width = Some(AestheticValue::Mapped(w))
+            }
+            ("width", ArgValue::NumericFixed(w)) => layer.width = w,
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(AestheticValue::Fixed(a)),
+            ("alpha", ArgValue::NumericMapped(a)) => layer.alpha = Some(AestheticValue::Mapped(a)),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::ErrorBar(layer)))
+}
+
 /// Parse a horizontal reference line.
 pub fn parse_hline(input: &str) -> IResult<&str, Layer> {
     let (input, _) = ws(tag("hline"))(input)?;
@@ -303,6 +429,108 @@ pub fn parse_vline(input: &str) -> IResult<&str, Layer> {
     }
 
     Ok((input, Layer::VLine(layer)))
+}
+
+/// Parse a diagonal reference line.
+pub fn parse_abline(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("abline"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("slope:")), ws(number_literal)), |s| {
+                ("slope", ArgValue::NumericFixed(s))
+            }),
+            map(preceded(ws(tag("intercept:")), ws(number_literal)), |i| {
+                ("intercept", ArgValue::NumericFixed(i))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("label:")), ws(string_literal)), |label| {
+                ("label", ArgValue::ColorFixed(label))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = AbLineLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("slope", ArgValue::NumericFixed(s)) => layer.slope = s,
+            ("intercept", ArgValue::NumericFixed(i)) => layer.intercept = i,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(c),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(w),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(a),
+            ("label", ArgValue::ColorFixed(label)) => layer.label = Some(label),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::AbLine(layer)))
+}
+
+/// Parse a fixed segment from (x, y) to (xend, yend).
+pub fn parse_segment(input: &str) -> IResult<&str, Layer> {
+    let (input, _) = ws(tag("segment"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+
+    let (input, args) = separated_list0(
+        ws(char(',')),
+        alt((
+            map(preceded(ws(tag("xend:")), ws(number_literal)), |xend| {
+                ("xend", ArgValue::NumericFixed(xend))
+            }),
+            map(preceded(ws(tag("yend:")), ws(number_literal)), |yend| {
+                ("yend", ArgValue::NumericFixed(yend))
+            }),
+            map(preceded(ws(tag("x:")), ws(number_literal)), |x| {
+                ("x", ArgValue::NumericFixed(x))
+            }),
+            map(preceded(ws(tag("y:")), ws(number_literal)), |y| {
+                ("y", ArgValue::NumericFixed(y))
+            }),
+            map(preceded(ws(tag("color:")), ws(string_literal)), |c| {
+                ("color", ArgValue::ColorFixed(c))
+            }),
+            map(preceded(ws(tag("width:")), ws(number_literal)), |w| {
+                ("width", ArgValue::NumericFixed(w))
+            }),
+            map(preceded(ws(tag("alpha:")), ws(number_literal)), |a| {
+                ("alpha", ArgValue::NumericFixed(a))
+            }),
+            map(preceded(ws(tag("label:")), ws(string_literal)), |label| {
+                ("label", ArgValue::ColorFixed(label))
+            }),
+        )),
+    )(input)?;
+
+    let (input, _) = ws(char(')'))(input)?;
+
+    let mut layer = SegmentLayer::default();
+    for (key, val) in args {
+        match (key, val) {
+            ("x", ArgValue::NumericFixed(x)) => layer.x = x,
+            ("y", ArgValue::NumericFixed(y)) => layer.y = y,
+            ("xend", ArgValue::NumericFixed(xend)) => layer.xend = xend,
+            ("yend", ArgValue::NumericFixed(yend)) => layer.yend = yend,
+            ("color", ArgValue::ColorFixed(c)) => layer.color = Some(c),
+            ("width", ArgValue::NumericFixed(w)) => layer.width = Some(w),
+            ("alpha", ArgValue::NumericFixed(a)) => layer.alpha = Some(a),
+            ("label", ArgValue::ColorFixed(label)) => layer.label = Some(label),
+            _ => {}
+        }
+    }
+
+    Ok((input, Layer::Segment(layer)))
 }
 
 /// Parse a point geometry
@@ -871,8 +1099,12 @@ pub fn parse_geom(input: &str) -> IResult<&str, Layer> {
         parse_point,
         parse_bar,
         parse_area,
+        parse_linerange,
+        parse_errorbar,
         parse_hline,
         parse_vline,
+        parse_abline,
+        parse_segment,
         parse_ribbon,
         parse_histogram,
         parse_smooth,
@@ -948,6 +1180,35 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_linerange_and_errorbar() {
+        let (_, linerange) =
+            parse_linerange(r#"linerange(ymin: lower, ymax: upper, color: group, width: 2)"#)
+                .expect("linerange should parse");
+        match linerange {
+            Layer::LineRange(l) => {
+                assert_eq!(l.ymin, Some("lower".to_string()));
+                assert_eq!(l.ymax, Some("upper".to_string()));
+                assert_eq!(l.color, Some(AestheticValue::Mapped("group".to_string())));
+                assert_eq!(l.width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected LineRange layer"),
+        }
+
+        let (_, errorbar) =
+            parse_errorbar(r#"errorbar(ymin: lower, ymax: upper, width: 0.3, linewidth: 2)"#)
+                .expect("errorbar should parse");
+        match errorbar {
+            Layer::ErrorBar(e) => {
+                assert_eq!(e.ymin, Some("lower".to_string()));
+                assert_eq!(e.ymax, Some("upper".to_string()));
+                assert_eq!(e.width, 0.3);
+                assert_eq!(e.line_width, Some(AestheticValue::Fixed(2.0)));
+            }
+            _ => panic!("Expected ErrorBar layer"),
+        }
+    }
+
+    #[test]
     fn test_parse_reference_lines() {
         let (_, hline) =
             parse_hline(r#"hline(yintercept: 10, color: "gray", width: 2, label: "Target")"#)
@@ -971,6 +1232,36 @@ mod tests {
                 assert_eq!(v.label, Some("Marker".to_string()));
             }
             _ => panic!("Expected VLine layer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_abline_and_segment() {
+        let (_, abline) = parse_abline(r#"abline(slope: 1.5, intercept: -2, label: "Fit")"#)
+            .expect("abline should parse");
+        match abline {
+            Layer::AbLine(a) => {
+                assert_eq!(a.slope, 1.5);
+                assert_eq!(a.intercept, -2.0);
+                assert_eq!(a.label, Some("Fit".to_string()));
+            }
+            _ => panic!("Expected AbLine layer"),
+        }
+
+        let (_, segment) = parse_segment(
+            r#"segment(x: 1, y: 2, xend: 3, yend: 4, color: "red", label: "Arrowless")"#,
+        )
+        .expect("segment should parse");
+        match segment {
+            Layer::Segment(s) => {
+                assert_eq!(s.x, 1.0);
+                assert_eq!(s.y, 2.0);
+                assert_eq!(s.xend, 3.0);
+                assert_eq!(s.yend, 4.0);
+                assert_eq!(s.color, Some("red".to_string()));
+                assert_eq!(s.label, Some("Arrowless".to_string()));
+            }
+            _ => panic!("Expected Segment layer"),
         }
     }
 

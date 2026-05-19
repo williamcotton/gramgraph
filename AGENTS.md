@@ -17,7 +17,7 @@ This architecture enables powerful, declarative chart specifications with clean 
 
 ### ✅ Implemented
 
-- **Core Geometries**: `line()`, `step()`, `point()`, `bar()`, `area()`, `ribbon()`, `hline()`, `vline()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
+- **Core Geometries**: `line()`, `step()`, `point()`, `bar()`, `area()`, `ribbon()`, `linerange()`, `errorbar()`, `hline()`, `vline()`, `abline()`, `segment()`, `boxplot()`, `violin()`, `density()`, `heatmap()` with full styling options
 - **Statistical Geoms**: `histogram(bins: n)`, `smooth()` (linear regression and LOESS), `boxplot()`, `violin()` (KDE), `density()` (KDE curve)
 - **Data-Driven Aesthetics**: Automatic grouping by color, size, rendered point shape, or alpha with legends
 - **Faceting**: Multi-panel subplot grids with `facet_wrap()` and flexible axis scales
@@ -27,7 +27,7 @@ This architecture enables powerful, declarative chart specifications with clean 
 - **Scales**: `scale_x_reverse()`, `scale_y_reverse()`, `xlim()`, `ylim()`, `scale_x_log10()`, `scale_y_log10()`, `scale_x_sqrt()`, `scale_y_sqrt()`
 - **Nice Ticks**: D3-style algorithm snaps numeric axis domains to clean boundaries and generates human-friendly tick positions (0, 1, 2... or 0, 5, 10...)
 - **Coordinates**: `coord_flip()` for horizontal charts
-- **Visual Customization**: `labs()` for titles/labels, `theme_minimal()`, `theme_dark()`, `theme_classic()`, and `theme_void()` presets
+- **Visual Customization**: `labs()` for titles/labels, `theme_minimal()`, `theme_dark()`, `theme_classic()`, `theme_light()`, and `theme_void()` presets
 - **Hierarchical Theme System**: `element_text()`, `element_line()`, `element_rect()`, `element_blank()` with inheritance
 - **Axis Text Styling**: Bold/italic text (`face`), X-axis label rotation (`angle`), text anchoring (`hjust`/`vjust`)
 - **Tick Visibility Control**: Hide tick marks with `axis_ticks: element_blank()`
@@ -157,6 +157,17 @@ cat data.csv | gramgraph 'aes(x: time, y: value) | step(direction: "mid", width:
 cat data.csv | gramgraph 'aes(x: time, y: value) | line() | hline(yintercept: 12, color: "red", label: "Target") | vline(xintercept: 3, color: "gray40", label: "Marker") | theme_minimal()'
 ```
 
+**Diagonal Reference Line and Segment:**
+```bash
+cat data.csv | gramgraph 'aes(x: height, y: weight) | point() | abline(slope: 1, intercept: -100, label: "Reference") | segment(x: 160, y: 55, xend: 185, yend: 85, label: "Manual segment") | theme_minimal()'
+```
+
+**Line Range and Error Bars:**
+```bash
+cat intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | linerange(width: 2) | theme_minimal()'
+cat intervals.csv | gramgraph 'aes(x: time, y: estimate, ymin: lower, ymax: upper, color: series) | errorbar(width: 0.2, linewidth: 1.5) | theme_minimal()'
+```
+
 **Reverse Scale:**
 ```bash
 cat data.csv | gramgraph 'aes(x: depth, y: pressure) | line() | labs(title: "Depth Profile") | theme_minimal() | scale_x_reverse()'
@@ -193,8 +204,12 @@ Defines global aesthetic mappings.
 - `violin(...)`: Violin plot using Kernel Density Estimation (KDE). Supports `draw_quantiles: [0.25, 0.5, 0.75]`.
 - `area(...)`: Filled area from `y` to a baseline. Supports `alpha: n`, `color: "..."`, and `baseline: n` (default 0).
 - `ribbon(...)`: Filled area between `ymin` and `ymax`.
+- `linerange(...)`: Vertical interval from `ymin` to `ymax` at each `x`. Supports `color`, `width`, and `alpha`.
+- `errorbar(...)`: Vertical interval with caps from `ymin` to `ymax` at each `x`. Supports `color`, `width` (cap width), `linewidth` (stroke width), and `alpha`.
 - `hline(...)`: Horizontal reference line. Uses `yintercept: n` (default 0); supports `color`, `width`, `alpha`, and `label`. Does not require `aes(...)` when used alone. Unlabeled reference lines do not create legend entries.
 - `vline(...)`: Vertical reference line. Uses `xintercept: n` (default 0); supports `color`, `width`, `alpha`, and `label`. Does not require `aes(...)` when used alone. Unlabeled reference lines do not create legend entries.
+- `abline(...)`: Diagonal reference line using `y = slope * x + intercept`. Supports `slope`, `intercept`, `color`, `width`, `alpha`, and `label`. Unlabeled reference lines do not create legend entries.
+- `segment(...)`: Fixed segment from `(x, y)` to `(xend, yend)`. Supports `color`, `width`, `alpha`, and `label`. Unlabeled segments do not create legend entries.
 - `histogram(...)`: Binning bar chart. Supports `bins: n`.
 - `density(...)`: Density curve using Gaussian KDE. Supports `alpha: n`, `color: "..."`, `bw: n` (bandwidth).
 - `heatmap(...)`: 2D tile plot with viridis color mapping. Supports `bins: n` (2D binning), `fill: col` (value column), `alpha: n`.
@@ -228,6 +243,7 @@ GramGraph implements a hierarchical theme system inspired by ggplot2, using elem
 - `theme_minimal()`: Clean, white background, no axis lines/ticks, light grid.
 - `theme_dark()`: Dark plot and panel backgrounds with light foreground text, axes, grid, and legend.
 - `theme_classic()`: White background with visible axes/ticks and no grid lines.
+- `theme_light()`: Light gray panel with white grid lines and visible axes/ticks.
 - `theme_void()`: Blank plotting canvas with axes, ticks, grid, and legend removed.
 
 **Element Functions:**

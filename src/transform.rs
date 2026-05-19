@@ -121,7 +121,10 @@ fn process_layer(
 ) -> Result<LayerData> {
     let aes = &layer_spec.aesthetics;
 
-    if matches!(layer_spec.original_layer, Layer::HLine(_) | Layer::VLine(_)) {
+    if matches!(
+        layer_spec.original_layer,
+        Layer::HLine(_) | Layer::VLine(_) | Layer::AbLine(_) | Layer::Segment(_)
+    ) {
         return Ok(process_reference_layer(&layer_spec.original_layer));
     }
 
@@ -382,10 +385,12 @@ fn process_layer(
                 let baseline = area.baseline;
                 (baseline, y_val, baseline.min(y_val), baseline.max(y_val))
             } else if matches!(layer_spec.original_layer, Layer::Ribbon(_))
+                || matches!(layer_spec.original_layer, Layer::LineRange(_))
+                || matches!(layer_spec.original_layer, Layer::ErrorBar(_))
                 || matches!(layer_spec.original_layer, Layer::Boxplot(_))
                 || matches!(layer_spec.original_layer, Layer::Violin(_))
             {
-                // Ribbon, Boxplot, and Violin use raw ymin/ymax
+                // Interval-like geoms, Boxplot, and Violin use raw ymin/ymax
                 (raw_min, raw_max, raw_min, raw_max)
             } else {
                 // Line/Point/Bar(unstacked)
@@ -535,12 +540,34 @@ fn process_reference_layer(layer: &Layer) -> LayerData {
                 alpha: vline.alpha,
             }),
         ),
+        Layer::AbLine(abline) => empty_group_data(
+            "default".to_string(),
+            RenderStyle::Line(LineStyle {
+                color: abline.color.clone(),
+                width: abline.width,
+                alpha: abline.alpha,
+            }),
+        ),
+        Layer::Segment(segment) => empty_group_data(
+            "default".to_string(),
+            RenderStyle::Line(LineStyle {
+                color: segment.color.clone(),
+                width: segment.width,
+                alpha: segment.alpha,
+            }),
+        ),
         _ => unreachable!("process_reference_layer only accepts reference layers"),
     };
 
     match layer {
         Layer::HLine(hline) => group.y.push(hline.yintercept),
         Layer::VLine(vline) => group.x.push(vline.xintercept),
+        Layer::Segment(segment) => {
+            group.x.push(segment.x);
+            group.y.push(segment.y);
+            group.x.push(segment.xend);
+            group.y.push(segment.yend);
+        }
         _ => {}
     }
 
@@ -638,6 +665,19 @@ fn build_style(
             color: pick_color(&a.color),
             alpha: pick_alpha(&a.alpha),
         }),
+        Layer::LineRange(l) => RenderStyle::LineRange(LineStyle {
+            color: pick_color(&l.color),
+            width: pick_size(&l.width),
+            alpha: pick_alpha(&l.alpha),
+        }),
+        Layer::ErrorBar(e) => RenderStyle::ErrorBar {
+            style: LineStyle {
+                color: pick_color(&e.color),
+                width: pick_size(&e.line_width),
+                alpha: pick_alpha(&e.alpha),
+            },
+            width: e.width,
+        },
         Layer::Ribbon(r) => RenderStyle::Ribbon(RibbonStyle {
             color: pick_color(&r.color),
             alpha: pick_alpha(&r.alpha),
@@ -687,6 +727,16 @@ fn build_style(
             color: v.color.clone(),
             width: v.width,
             alpha: v.alpha,
+        }),
+        Layer::AbLine(a) => RenderStyle::Line(LineStyle {
+            color: a.color.clone(),
+            width: a.width,
+            alpha: a.alpha,
+        }),
+        Layer::Segment(s) => RenderStyle::Line(LineStyle {
+            color: s.color.clone(),
+            width: s.width,
+            alpha: s.alpha,
         }),
     }
 }

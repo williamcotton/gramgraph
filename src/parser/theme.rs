@@ -414,6 +414,58 @@ pub fn parse_theme_classic(input: &str) -> IResult<&str, Theme> {
     ))
 }
 
+/// Parse theme_light() - white background with light gray panel and grid.
+pub fn parse_theme_light(input: &str) -> IResult<&str, Theme> {
+    let (input, _) = ws(tag("theme_light"))(input)?;
+    let (input, _) = ws(char('('))(input)?;
+    let (input, _) = ws(char(')'))(input)?;
+
+    Ok((
+        input,
+        Theme {
+            line: ThemeElement::Inherit,
+            rect: ThemeElement::Inherit,
+            text: ThemeElement::Inherit,
+            plot_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                ..Default::default()
+            }),
+            plot_title: ThemeElement::Inherit,
+            panel_background: ThemeElement::Rect(ElementRect {
+                fill: Some("#F5F5F5".to_string()),
+                color: Some("#BDBDBD".to_string()),
+                width: Some(1.0),
+            }),
+            panel_grid_major: ThemeElement::Line(ElementLine {
+                color: Some("white".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            panel_grid_minor: ThemeElement::Blank,
+            axis_text: ThemeElement::Inherit,
+            axis_line: ThemeElement::Line(ElementLine {
+                color: Some("#777777".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            axis_ticks: ThemeElement::Line(ElementLine {
+                color: Some("#777777".to_string()),
+                width: Some(1.0),
+                ..Default::default()
+            }),
+            legend_position: None,
+            legend_background: ThemeElement::Rect(ElementRect {
+                fill: Some("white".to_string()),
+                color: Some("#BDBDBD".to_string()),
+                width: Some(1.0),
+            }),
+            legend_text: ThemeElement::Inherit,
+            legend_margin: None,
+            legend_key_size: None,
+        },
+    ))
+}
+
 /// Parse theme_void() - blank panel with no axes, ticks, grid, or legend.
 pub fn parse_theme_void(input: &str) -> IResult<&str, Theme> {
     let (input, _) = ws(tag("theme_void"))(input)?;
@@ -492,6 +544,7 @@ pub fn parse_theme_command(input: &str) -> IResult<&str, Theme> {
         parse_theme_minimal,
         parse_theme_dark,
         parse_theme_classic,
+        parse_theme_light,
         parse_theme_void,
         parse_theme,
     ))(input)
@@ -565,6 +618,15 @@ mod tests {
         assert_eq!(theme.axis_line, ThemeElement::Blank);
         assert_eq!(theme.axis_ticks, ThemeElement::Blank);
         assert_eq!(theme.legend_position, Some(LegendPosition::None));
+    }
+
+    #[test]
+    fn test_parse_theme_light() {
+        let result = parse_theme_light("theme_light()");
+        assert!(result.is_ok());
+        let (_, theme) = result.unwrap();
+        assert!(matches!(theme.panel_background, ThemeElement::Rect(_)));
+        assert!(matches!(theme.axis_line, ThemeElement::Line(_)));
     }
 
     #[test]
